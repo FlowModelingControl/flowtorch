@@ -1,0 +1,5 @@
+__pycache__
+docs/build
+docs/source/_build
+.ipynb_checkpoints
+.vscode
