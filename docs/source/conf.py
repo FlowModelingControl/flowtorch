@@ -24,9 +24,9 @@ def setup(app):
 
 # -- Project information -----------------------------------------------------
 
-project = 'xROM-OS'
-copyright = '2020, xROM-OS contributors'
-author = 'xROM-OS contributors'
+project = 'flowTorch'
+copyright = '2020, flowTorch contributors'
+author = 'flowTorch contributors'
 
 # The full version, including alpha/beta/rc tags
 release = '0.1'

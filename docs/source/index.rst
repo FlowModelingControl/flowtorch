@@ -1,7 +1,7 @@
-xROM-OS Documentation
-=====================
+flowTorch Documentation
+=======================
 
-Welcome to the **xROM-OS** documentation! On this website, you find instructions to install and use xROM,
+Welcome to the **flowTorch** documentation! On this website, you find instructions to install and use flowTorch,
 Jupyterlab examples, start-to-end workflows with numerical and experimental data, and a documenation of
 the Python :term:`API`.
 
@@ -27,7 +27,7 @@ the Python :term:`API`.
    :maxdepth: 1
    :caption: Python API
 
-   xrom
+   flowtorch
 
 
 Indices and tables

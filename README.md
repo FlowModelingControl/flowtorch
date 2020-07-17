@@ -1,10 +1,12 @@
-# xrom-os
-xROM-OS - a Python library for flow analysis and reduced order modeling
+# flowTorch
+
+**flowTorch** - a Python library for analysis and reduced order modeling of fluid flows
+
 create table of content
 
 ## Overview
 
-purpose of xROM
+purpose of flowTorch
 optimized for large simulation data
 point to documentation
 
