@@ -11,9 +11,33 @@ from torch import Tensor
 class Dataloader(ABC):
     r"""Abstract base class to define a common interface for dataloaders.
     """
+    @abstractmethod
+    def write_times(self):
+        pass
+
 
     @abstractmethod
-    def get_data_matrix(self, bounds: list = []) -> Tensor:
+    def field_names(self):
+        pass
+
+
+    @abstractmethod
+    def load_snapshot(self, time, fields):
+        pass
+
+
+    @abstractmethod
+    def load_mesh(self):
+        pass
+
+
+    @abstractmethod
+    def weighting_matrix(self):
+        pass
+
+
+    @abstractmethod
+    def data_matrix(self, times: list = [], fields: list = []) -> Tensor:
         """Load data and generate a data matrix.
 
         For *n* snapshots with *m* datapoints each, this methods returns
