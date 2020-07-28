@@ -22,6 +22,8 @@ the Python :term:`API`.
    notebooks/linear_algebra_basics
    notebooks/POD_introduction
    notebooks/DMD_introduction
+   notebooks/cylinder_flow
+   notebooks/separation_bubble_flow
 
 .. toctree::
    :maxdepth: 1
