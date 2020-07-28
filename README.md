@@ -19,7 +19,7 @@ point to documentation
 
 PyPi packages for documentation:
 ```
-pip install sphinx sphinx_rtd_theme nbsphinx
+pip install sphinx sphinx_rtd_theme nbsphinx pytest
 ```
 ## Getting started
 
