@@ -1,8 +1,8 @@
 Developer's guide
 =================
 
-Getting the xROM-OS sources
----------------------------
+Getting the flowTorch sources
+-----------------------------
 
 Continuous integration model
 ----------------------------
@@ -10,8 +10,15 @@ Continuous integration model
 Building Singularity and Docker images
 --------------------------------------
 
-Creating the *pip* package
---------------------------
+To build the OpenFOAM singularity image, run
+
+.. code:: bash
+
+  sudo singularity build openfoam-v2006.sif openfoam-v2006.def
+
+
+Creating the *PyPi* (pip) package
+---------------------------------
 
 Sphinx documentation
 --------------------

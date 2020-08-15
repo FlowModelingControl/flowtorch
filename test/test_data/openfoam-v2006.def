@@ -1,0 +1,57 @@
+Bootstrap: docker
+From: openfoamplus/of_v2006_centos73
+  
+%runscript
+  CMD=$1 # command to execute
+  ARG=$2 # argument for command; either path or openFOAM app
+  OPT=$3 # additional options
+
+  # openFOAM environment variables
+  source /opt/OpenFOAM/setImage_v2006.sh
+
+  case $CMD in
+    run) # execute Allrun script
+      if [ -f $ARG/Allrun ]; then
+        $ARG/Allrun $OPT
+      else
+        echo "Error: file $ARG/Allrun does not exist..."
+        exit 1
+      fi
+      ;;
+    clean) # execute Allclean script
+      if [ -f $ARG/Allclean ]; then
+        $ARG/Allclean $OPT
+      else
+        echo "Error: file $ARG/Allclean does not exist..."
+        exit 1
+      fi
+      ;;
+    app)
+      if hash $ARG &> /dev/null ; then
+        $ARG $OPT
+      else
+        echo "Error: no application called $ARG"
+      fi
+      ;;
+    *)
+      # generic case
+      echo "Error: invalid argument $CMD $ARG"
+      echo "run"
+      echo "\$ singularity run-help openfoam-v2006.sif"
+      echo "for more information"
+      exit 1
+  esac
+
+%help
+  Simple Singularity container based on the official OpenFOAM-plus
+  Docker image. Currently, the following execution modes are available:
+
+  run - execute the Allrun script in an OpenFOAM case
+    singularity run openfoam-v2006.sif run /path/to/case
+
+  clean - execute the Allclean script in an OpenFOAM case
+    singularity run openfoam-v2006.sif clean /path/to/case
+
+  app - execute an OpenFOAM app or utility
+    singularity run openfoam-v2006.sif app icoFoam -help
+    singularity run openfoam-v2006.sif app paraFoam "-case path/to/case"

@@ -1,5 +1,7 @@
 __pycache__
 docs/build
 docs/source/_build
+test/test_data/run
 .ipynb_checkpoints
 .vscode
+*.sif
