@@ -1,0 +1,22 @@
+#!/bin/sh
+cd "${0%/*}" || exit                                # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+# rotate airfoil geometry by -5°
+runApplication surfaceTransformPoints -rotate-angle "((0 0 1) -5.0)" constant/triSurface/naca0012-34.stl constant/triSurface/naca0012-34-5.stl
+
+# create mesh
+runApplication blockMesh
+runApplication snappyHexMesh -overwrite
+runApplication extrudeMesh
+runApplication createPatch -overwrite
+runApplication transformPoints -scale "0.18352"
+
+runApplication decomposePar
+runParallel renumberMesh -overwrite
+runParallel $(getApplication)
+
+touch post.foam
+
+#------------------------------------------------------------------------------

@@ -1,0 +1,63 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2006                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      k;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+kInlet          0.01;
+
+dimensions      [0 2 -2 0 0 0 0];
+
+internalField   uniform $kInlet;
+
+boundaryField
+{
+    inlet
+    {
+        type            inletOutlet;
+        inletValue      uniform $kInlet;
+        value           uniform $kInlet;
+    }
+
+    outlet
+    {
+        type            inletOutlet;
+        inletValue      uniform $kInlet;
+        value           uniform $kInlet;
+    }
+
+    topAndBottom
+    {
+        type            inletOutlet;
+        inletValue      uniform $kInlet;
+        value           uniform $kInlet;
+    }
+
+    airfoil
+    {
+        type            kqRWallFunction;
+        value           uniform $kInlet;
+    }
+
+    front
+    {
+        type            empty;
+    }
+
+    back
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //
