@@ -45,5 +45,31 @@ timePrecision   6;
 
 runTimeModifiable true;
 
+functions
+{
+    volFieldSums
+    {
+        type            volFieldValue;
+        libs            (fieldFunctionObjects);
+
+        fields          (U p);
+        operation       sum;
+        regionType      all;
+
+        postOperation   none;
+        writeFields     false;
+        scalingFactor   1.0;
+        writePrecision  8;
+        writeToFile     true;
+        enabled         true;
+        log             false;
+        timeStart       0;
+        timeEnd         1000;
+        executeControl  writeTime;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   1;
+    }
+}
 
 // ************************************************************************* //
