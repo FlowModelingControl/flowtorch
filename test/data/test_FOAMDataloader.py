@@ -67,12 +67,12 @@ class TestFOAMCase:
         for key in get_test_data.distributed.keys():
             case = FOAMCase(get_test_data.paths[key])
             distributed = get_test_data.distributed[key]
-            assert distributed == case.distributed()
+            assert distributed == case._distributed
 
     def test_processors(self, get_test_data):
         for key in get_test_data.paths.keys():
             case = FOAMCase(get_test_data.paths[key])
-            assert get_test_data.processors[key] == case.processors()
+            assert get_test_data.processors[key] == case._processors
 
     def test_build_file_path(self, get_test_data):
         for key in get_test_data.paths.keys():
@@ -88,17 +88,27 @@ class TestFOAMCase:
         for key in get_test_data.paths.keys():
             case = FOAMCase(get_test_data.paths[key])
             write_times = get_test_data.times[key]
-            assert write_times == case.write_times()
+            assert write_times == case._time_folders
 
     def test_field_names(self, get_test_data):
         for key in get_test_data.paths.keys():
             case = FOAMCase(get_test_data.paths[key])
             field_names = get_test_data.field_names[key]
-            assert field_names == case.field_names()
+            assert field_names == case._field_names
 
 
 class TestFOAMDataloader:
-    def test_instantiation(self, get_test_data):
+    def test_ascii_serial(self, get_test_data):
         for key in get_test_data.paths.keys():
             case = get_test_data.paths[key]
             FOAMDataloader(case)
+            assert False
+
+    def test_binary_serial(self, get_test_data):
+        assert False
+
+    def test_ascii_parallel(self, get_test_data):
+        assert False
+
+    def test_binary_parallel(self, get_test_data):
+        assert False

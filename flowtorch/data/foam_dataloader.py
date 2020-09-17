@@ -27,7 +27,7 @@ class FOAMDataloader(Dataloader):
         """
         self._case = FOAMCase(path)
 
-    def _parse_data(self, data, mode):
+    def _parse_data(self, data):
         _, line = self._find_line_by_keyword(data, b"class")
         field_type = line.split(b" ")[-1][:-1]
         field_parsers = {
@@ -35,7 +35,7 @@ class FOAMDataloader(Dataloader):
             b"volVectorField": self._parse_volVectorField
         }
         try:
-            field_data = field_parsers[field_type](data, mode)
+            field_data = field_parsers[field_type](data)
         except:
             print(
                 "Error: field type {:s} is not supported"
@@ -53,10 +53,10 @@ class FOAMDataloader(Dataloader):
                 found = True
         return line_i, data[line_i]
 
-    def _parse_volScalarField(self, data, mode):
+    def _parse_volScalarField(self, data):
         pass
 
-    def _parse_volVectorField(self, data, mode):
+    def _parse_volVectorField(self, data):
         print("Parsing vector field...")
         line_i, line = self._find_line_by_keyword(data, b"internalField")
         n_values = int(data[line_i + 1])
@@ -68,15 +68,15 @@ class FOAMDataloader(Dataloader):
         print(data[line_i + 3])
 
     def write_times(self):
-        return self._case.write_times()
+        return self._case._time_folders
 
     def field_names(self):
-        return self._case.field_names()
+        return self._case._field_names
 
     def load_snapshot(self, field_name, time, start_at, batch_size):
         file_paths = []
-        if self._case.distributed():
-            for proc in range(self._case.processors()):
+        if self._case._distributed:
+            for proc in range(self._case._processors):
                 file_paths.append(
                     self._case.build_file_path(field_name, time, proc))
         else:
@@ -123,7 +123,7 @@ class FOAMCase():
 
     @main_bcast
     def _eval_write_times(self):
-        if self.distributed():
+        if self._distributed:
             time_path = self._path + "/processor0"
         else:
             time_path = self._path
@@ -161,23 +161,6 @@ class FOAMCase():
                 if os.path.isfile(os.path.join(folder, field))
             ]
         return all_fields
-
-
-    def distributed(self):
-        return self._distributed
-
-    def processors(self):
-        return self._processors
-
-    def write_times(self):
-        """Extract the write times from the folder names.
-        """
-        return self._time_folders
-
-    def field_names(self):
-        """
-        """
-        return self._field_names
 
     def build_file_path(self, field_name, time, processor):
         """

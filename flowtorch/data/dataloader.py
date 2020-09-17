@@ -22,6 +22,11 @@ class Dataloader(ABC):
 
     @abstractmethod
     def load_snapshot(
-        self, field_name: str, time: str, dtype: str, start_at: int, batch_size: int
+        self,
+        field_name: str,
+        time: str,
+        dtype: str,
+        start_at: int,
+        batch_size: int
     ) -> Tensor:
         pass
