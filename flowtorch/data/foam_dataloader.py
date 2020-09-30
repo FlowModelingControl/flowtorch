@@ -1,8 +1,10 @@
 r"""Implementation of a concrete :class:`Dataloader` class.
 
 The :class:`FOAMDataloader` class allows to load fields from
-an OpenFOAM simulation solder. Currently, only the ESI branch
-of OpenFOAM is supported (v1912, v2006).
+an OpenFOAM simulation folder. Currently, only the ESI-OpenCFD
+branch of OpenFOAM is supported (v1912, v2006). The :class:`FoamCase`
+class assembles information about the folder and file structure
+of a simulation.
 """
 
 from .dataloader import Dataloader
@@ -21,24 +23,30 @@ FIELD_TYPE_DIMENSION = {
 
 MAX_LINE_HEADER = 20
 MAX_LINE_INTERNAL_FIELD = 25
+BIG_INT = 1e15
 
 SIZE_OF_CHAR = struct.calcsize("c")
 SIZE_OF_DOUBLE = struct.calcsize("d")
 
 
 class FOAMDataloader(Dataloader):
-    r"""
+    r"""Loads fields in native OpenFOAM format.
 
-    The structure of some methods is based on *ofpp* by Xu Xianghua
-    (https://github.com/xu-xianghua/ofpp).
+    The project ofpp_ by Xu Xianghua has been a great
+    help to implement some of the methods.
+
+    .. _ofpp: https://github.com/xu-xianghua/ofpp
 
     """
 
-    def __init__(self, path, dtype=pt.float32):
-        r"""[summary]
+    def __init__(self, path: str, dtype: str=pt.float32):
+        r"""Create a FOAMDataloader instance from a path.
 
-        :param path: [description]
-        :type path: [type]
+        :param path: path to an OpenFOAM simulation folder.
+        :type path: str
+        :param dtype: tensor type; default is single precision `float32`
+        :type dtype: str
+
         """
         self._case = FOAMCase(path)
         self._dtype = dtype
@@ -109,12 +117,16 @@ class FOAMDataloader(Dataloader):
             return pt.tensor(values, dtype=self._dtype)
 
     def write_times(self):
+        """Returns the output of :func:`FOAMCase._eval_write_times`
+        """
         return self._case._time_folders
 
     def field_names(self):
+        """Returns the output of :func:`FOAMCase._eval_field_names`
+        """
         return self._case._field_names
 
-    def load_snapshot(self, field_name, time, start_at=0, batch_size=1e15):
+    def load_snapshot(self, field_name, time, start_at=0, batch_size=BIG_INT) -> pt.Tensor:
         file_paths = []
         if self._case._distributed:
             for proc in range(self._case._processors):
@@ -133,40 +145,89 @@ class FOAMDataloader(Dataloader):
         joint_data = pt.cat(field_data)
         return joint_data[start_at:min(batch_size, joint_data.size()[0])]
 
-    def get_vertices(self):
+    def get_vertices(self) -> pt.Tensor:
+        """Get vertices at which field values are defined.
+
+        In OpenFOAM, all field are defined at the control volume's
+        center. Therefore, get vertices returns the cell center locations.
+
+        :returns: control volume centers
+        :rtype: Tensor
+
+        """
         pass
 
     def get_weights(self):
         pass
 
 
-class FOAMCase():
+class FOAMCase(object):
     """Class to access and parse OpenFOAM cases.
+
+    Most of the attributes and methods are private because they are
+    typically accessed via a :class:`FOAMDataloader` instance.
+
+    .. automethod:: _eval_distributed
+    .. automethod:: _eval_processors
+    .. automethod:: _eval_write_times
+    .. automethod:: _eval_field_names
     """
 
     def __init__(self, path):
+        """Create a `FOAMCase` instance based on a path.
+
+        :param path: path to OpenFOAM simulation case
+        :type path: str
+
+        """
         self._path = path
         if not os.path.exists(self._path):
             sys.exit("Error: could not find case {:s}".format(self._path))
+        if self._path[-1] == "/":
+            self._path = self._path[:-1]
         self._distributed = self._eval_distributed()
         self._processors = self._eval_processors()
         self._time_folders = self._eval_write_times()
         self._field_names = self._eval_field_names()
 
     @main_bcast
-    def _eval_distributed(self):
+    def _eval_distributed(self) -> bool:
+        """Check if the simulation case is distributed (parallel).
+
+        .. warning::
+            Collated output is currently not supported/not detected.
+
+        :return: `True` if distributed
+        :rtype: bool
+
+        """
         proc_dirs = glob.glob(self._path + "/processor*")
         return len(proc_dirs) > 0
 
     @main_bcast
-    def _eval_processors(self):
+    def _eval_processors(self) -> int:
+        """Get number of processor folders.
+
+        :return: number of processor folders or 1 for serial runs
+        :rtype: int
+
+        """
         if self._distributed:
             return len(glob.glob(self._path + "/processor*"))
         else:
             return 1
 
     @main_bcast
-    def _eval_write_times(self):
+    def _eval_write_times(self) -> list:
+        """Assemble a list of all write times.
+
+        :return: a list of all time folders
+        :rtype: list(str)
+
+        .. warning::
+            For distributed simulations, it is assumed that all processor
+            folders contain the same time folders.
+        """
         if self._distributed:
             time_path = self._path + "/processor0"
         else:
@@ -188,11 +249,17 @@ class FOAMCase():
         return sorted(time_dirs, key=float)
 
     @main_bcast
-    def _eval_field_names(self):
-        """
-        assumption if distributed: all processor folders have the
-        same fields per time step; determine field names from
-        processor zero
+    def _eval_field_names(self) -> dict:
+        """Get a dictionary of all fields and files in all time folders.
+
+        .. warning::
+            For distributed cases, only *processor0* is evaluated. The fields
+            for all other processors are assumed to be the same.
+
+        :return: dictionary with write times as keys and the field names
+            for each time as values
+        :rtype: dict
+
         """
         all_time_folders = [
             self.build_file_path("", time, 0)
@@ -206,8 +273,34 @@ class FOAMCase():
             ]
         return all_fields
 
-    def build_file_path(self, field_name, time, processor):
-        """
+    def build_file_path(self, field_name, time, processor=0) -> str:
+        """Create the path to file inside the time folder of a simulation.
+
+        :param field_name: name of the field or file, e.g., \"U\" or \"p\"
+        :type field_name: str
+        :param time: name of the time folder, e.g., \"0.01\"
+        :type time: str
+        :param processor: processor folder to load the data from; ignored
+            in serial simulation cases; defaults to `0`
+        :type processor: int, optional
+        :return: path to file inside a time folder
+        :rtype: str
+
+        Examples
+
+        >>> from flowtorch.data import FOAMCase
+        >>> case = FOAMCase("./cavity_binary_parallel/")
+        >>> case._distributed
+        True
+        >>> case._processors
+        4
+        >>> case._time_folders
+        ['0', '0.1', '0.2', '0.3', '0.4', '0.5']
+        >>> case._field_names
+        {'0': ['U', 'p'], '0.1': ['U', 'p', 'phi'], '0.2': ['U', 'p', 'phi'], '0.3': ['U', 'p', 'phi'], '0.4': ['U', 'p', 'phi'], '0.5': ['U', 'p', 'phi']}
+        >>> case.build_file_path("U", "0.1", 1)
+        './cavity_binary_parallel/processor1/0.1/U'
+
         """
         if self._distributed:
             file_path = (
