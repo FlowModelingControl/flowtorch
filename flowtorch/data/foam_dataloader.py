@@ -9,63 +9,104 @@ from .dataloader import Dataloader
 from .mpi_tools import main_bcast
 import glob
 import os
+import struct
 import sys
 import torch as pt
-import numpy as np
+
+
+FIELD_TYPE_DIMENSION = {
+    b"volScalarField": 1,
+    b"volVectorField": 3
+}
+
+MAX_LINE_HEADER = 20
+MAX_LINE_INTERNAL_FIELD = 25
+
+SIZE_OF_CHAR = struct.calcsize("c")
+SIZE_OF_DOUBLE = struct.calcsize("d")
 
 
 class FOAMDataloader(Dataloader):
     r"""
 
+    The structure of some methods is based on *ofpp* by Xu Xianghua
+    (https://github.com/xu-xianghua/ofpp).
+
     """
 
-    def __init__(self, path):
+    def __init__(self, path, dtype=pt.float32):
         r"""[summary]
 
         :param path: [description]
         :type path: [type]
         """
         self._case = FOAMCase(path)
+        self._dtype = dtype
 
     def _parse_data(self, data):
-        _, line = self._find_line_by_keyword(data, b"class")
-        field_type = line.split(b" ")[-1][:-1]
-        field_parsers = {
-            b"volScalarField": self._parse_volScalarField,
-            b"volVectorField": self._parse_volVectorField
-        }
+        field_type = self._field_type(data[:MAX_LINE_HEADER])
         try:
-            field_data = field_parsers[field_type](data)
-        except:
-            print(
-                "Error: field type {:s} is not supported"
-                .format(field_type)
-            )
+            if self._is_binary(data[:MAX_LINE_HEADER]):
+                field_data = self._unpack_internalfield_binary(
+                    data, FIELD_TYPE_DIMENSION[field_type]
+                )
+            else:
+                field_data = self._unpack_internalfield_ascii(
+                    data, FIELD_TYPE_DIMENSION[field_type]
+                )
+        except Exception as e:
+            print(e)
         else:
             return field_data
 
-    def _find_line_by_keyword(self, data, keyword):
-        found = False
-        line_i = -1
-        while not found and line_i < len(data):
-            line_i += 1
-            if keyword in data[line_i]:
-                found = True
-        return line_i, data[line_i]
+    def _is_binary(self, data):
+        for line in data:
+            if b"format" in line:
+                if b"binary" in line:
+                    return True
+                else:
+                    return False
+        return False
 
-    def _parse_volScalarField(self, data):
-        pass
+    def _find_nonuniform(self, data):
+        for i, line in enumerate(data):
+            if b"nonuniform" in line:
+                return i, int(data[i+1])
+        return 0, 0
 
-    def _parse_volVectorField(self, data):
-        print("Parsing vector field...")
-        line_i, line = self._find_line_by_keyword(data, b"internalField")
-        n_values = int(data[line_i + 1])
-        print("{:d} internal values".format(n_values))
-        line_j, _ = self._find_line_by_keyword(data, b"boundaryField")
-        print(len(data[line_i + 2:]))
-        print(len(data[line_i + 2:line_j - 1]))
-        print(data[line_i + 2])
-        print(data[line_i + 3])
+    def _field_type(self, data):
+        for line in data:
+            if b"class" in line:
+                for field_type in FIELD_TYPE_DIMENSION.keys():
+                    if field_type in line:
+                        return field_type
+                return None
+        return None
+
+    def _unpack_internalfield_ascii(self, data, dim):
+        start, n_values = self._find_nonuniform(data[:MAX_LINE_INTERNAL_FIELD])
+        start += 3
+        if dim == 1:
+            return pt.tensor([float(line) for line in data[start:start + n_values]], dtype=self._dtype)
+        else:
+            return pt.tensor(
+                [list(map(float, line[1:-2].split()))
+                 for line in data[start:start + n_values]],
+                dtype=self._dtype
+            )
+
+    def _unpack_internalfield_binary(self, data, dim):
+        start, n_values = self._find_nonuniform(data[:MAX_LINE_INTERNAL_FIELD])
+        start += 2
+        buffer = b"".join(data[start:])
+        values = struct.unpack(
+            "{}d".format(dim*n_values),
+            buffer[SIZE_OF_CHAR:SIZE_OF_CHAR+SIZE_OF_DOUBLE*n_values*dim]
+        )
+        if dim > 1:
+            return pt.tensor(values, dtype=self._dtype).reshape(n_values, dim)
+        else:
+            return pt.tensor(values, dtype=self._dtype)
 
     def write_times(self):
         return self._case._time_folders
@@ -73,7 +114,7 @@ class FOAMDataloader(Dataloader):
     def field_names(self):
         return self._case._field_names
 
-    def load_snapshot(self, field_name, time, start_at, batch_size):
+    def load_snapshot(self, field_name, time, start_at=0, batch_size=1e15):
         file_paths = []
         if self._case._distributed:
             for proc in range(self._case._processors):
@@ -89,9 +130,13 @@ class FOAMDataloader(Dataloader):
             except Exception as e:
                 print("Error: could not read file {:s}".format(file_path))
                 print(e)
-        return pt.cat(field_data)
+        joint_data = pt.cat(field_data)
+        return joint_data[start_at:min(batch_size, joint_data.size()[0])]
 
-    def load_mesh(self):
+    def get_vertices(self):
+        pass
+
+    def get_weights(self):
         pass
 
 
@@ -107,7 +152,6 @@ class FOAMCase():
         self._processors = self._eval_processors()
         self._time_folders = self._eval_write_times()
         self._field_names = self._eval_field_names()
-        
 
     @main_bcast
     def _eval_distributed(self):
