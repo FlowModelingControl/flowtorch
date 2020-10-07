@@ -39,7 +39,7 @@ class FOAMDataloader(Dataloader):
 
     """
 
-    def __init__(self, path: str, dtype: str=pt.float32):
+    def __init__(self, path: str, dtype: str = pt.float32):
         r"""Create a FOAMDataloader instance from a path.
 
         :param path: path to an OpenFOAM simulation folder.
@@ -126,7 +126,7 @@ class FOAMDataloader(Dataloader):
         """
         return self._case._field_names
 
-    def load_snapshot(self, field_name, time, start_at=0, batch_size=BIG_INT) -> pt.Tensor:
+    def load_snapshot(self, field_name: str, time: str, start_at: int=0, batch_size: int=BIG_INT) -> pt.Tensor:
         file_paths = []
         if self._case._distributed:
             for proc in range(self._case._processors):
@@ -273,7 +273,7 @@ class FOAMCase(object):
             ]
         return all_fields
 
-    def build_file_path(self, field_name, time, processor=0) -> str:
+    def build_file_path(self, field_name: str, time: str, processor: int=0) -> str:
         """Create the path to file inside the time folder of a simulation.
 
         :param field_name: name of the field or file, e.g., \"U\" or \"p\"
@@ -310,3 +310,74 @@ class FOAMCase(object):
         else:
             file_path = self._path + "/{:s}/{:s}".format(time, field_name)
         return file_path
+
+
+class FOAMMesh(object):
+    """Class to load load and process OpenFOAM meshes.
+
+    OpenFOAM stores the finite volume mesh as a collection of several
+    files located in *constant/polyMesh* or in *processorXX/constant/polyMesh*
+    for serial and distributed cases, respectively. Even though OpenFOAM
+    is a cell-centered finite volume method, the cell-centers and volumes are
+    not explicitly stores. Instead, a so-called face-addressing storage is used.
+    All internal faces have an owner cell and a neighbor cell. Boundary faces only
+    have an owner cell. The mesh attributes are defined in several files:
+
+    - **points**: list of vertices forming cell faces; the list index of a point is used as label
+    - **faces**: list of all cell faces defined as point labels
+    - **owner**: list of cell labels that are face owners
+    - **neighbour**: list of cell label that are face neighbors; BE spelling
+    - **boundary**: definition of faces belonging to a patch
+
+
+    .. automethod:: _compute_cell_centers_and_volumes
+
+    """
+
+    def __init__(self, case: FOAMCase):
+        self._case = case
+        self._check_files()
+        self._vertices = None
+        self._n_cell_faces = None
+        self._faces = None
+        self._cell_centers = None
+        self._cell_volumes = None
+
+    def _check_files(self):
+        """Check if all mesh files are available.
+        """
+        pass
+
+    def _parse_points(self):
+        """Parse mesh vertices defined in *constant/polyMesh/points*.
+        """
+        pass
+
+    def _parse_faces(self):
+        """Parse cell faces stored in in *constant/polyMesh/faces*.
+        """
+        pass
+
+    def _parse_owners_and_neighbors(self):
+        """Parse face owners and neighbors.
+        
+        - owners are parsed from *constant/polyMesh/owner*
+        - neighbors are parsed from *constant/polyMesh/neighbour*
+        
+        """
+        pass
+
+    def _compute_cell_centers_and_volumes(self):
+        """Compute the cell centers and volumes of an OpenFOAM mesh.
+
+        The implemented algorithm is the same as in makeCellCentresAndVols_.
+        OpenFOAM uses 
+        The following steps are involved:
+
+        1. compute an estimate of the cell center as the sum over all face centers of a cell
+        2. 
+
+        .. _makeCellCentresAndVols: https://www.openfoam.com/documentation/guides/latest/api/classFoam_1_1primitiveMesh.html
+
+        """
+        pass
