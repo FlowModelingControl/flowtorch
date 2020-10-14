@@ -2,9 +2,10 @@ r"""Implementation of a concrete :class:`Dataloader` class.
 
 The :class:`FOAMDataloader` class allows to load fields from
 an OpenFOAM simulation folder. Currently, only the ESI-OpenCFD
-branch of OpenFOAM is supported (v1912, v2006). The :class:`FoamCase`
+branch of OpenFOAM is supported (v1912, v2006). The :class:`FOAMCase`
 class assembles information about the folder and file structure
-of a simulation.
+of a simulation. The :class:`FOAMMesh` allows to loads and parses
+the finite volume mesh.
 """
 
 from .dataloader import Dataloader
@@ -20,6 +21,10 @@ FIELD_TYPE_DIMENSION = {
     b"volScalarField": 1,
     b"volVectorField": 3
 }
+
+POLYMESH_PATH = "constant/polyMesh/"
+MESH_FILES = ["points", "owner", "neighbour", "faces", "boundary"]
+
 
 MAX_LINE_HEADER = 20
 MAX_LINE_INTERNAL_FIELD = 25
@@ -49,12 +54,13 @@ class FOAMDataloader(Dataloader):
 
         """
         self._case = FOAMCase(path)
+        self._mesh = FOAMMesh(self._case)
         self._dtype = dtype
 
     def _parse_data(self, data):
         field_type = self._field_type(data[:MAX_LINE_HEADER])
         try:
-            if self._is_binary(data[:MAX_LINE_HEADER]):
+            if self._case._is_binary(data[:MAX_LINE_HEADER]):
                 field_data = self._unpack_internalfield_binary(
                     data, FIELD_TYPE_DIMENSION[field_type]
                 )
@@ -66,15 +72,6 @@ class FOAMDataloader(Dataloader):
             print(e)
         else:
             return field_data
-
-    def _is_binary(self, data):
-        for line in data:
-            if b"format" in line:
-                if b"binary" in line:
-                    return True
-                else:
-                    return False
-        return False
 
     def _find_nonuniform(self, data):
         for i, line in enumerate(data):
@@ -126,7 +123,7 @@ class FOAMDataloader(Dataloader):
         """
         return self._case._field_names
 
-    def load_snapshot(self, field_name: str, time: str, start_at: int=0, batch_size: int=BIG_INT) -> pt.Tensor:
+    def load_snapshot(self, field_name: str, time: str, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
         file_paths = []
         if self._case._distributed:
             for proc in range(self._case._processors):
@@ -145,7 +142,7 @@ class FOAMDataloader(Dataloader):
         joint_data = pt.cat(field_data)
         return joint_data[start_at:min(batch_size, joint_data.size()[0])]
 
-    def get_vertices(self) -> pt.Tensor:
+    def get_vertices(self, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
         """Get vertices at which field values are defined.
 
         In OpenFOAM, all field are defined at the control volume's
@@ -155,10 +152,21 @@ class FOAMDataloader(Dataloader):
         :rtype: Tensor
 
         """
-        pass
+        centers = self._mesh.get_cell_centers()
+        return centers[start_at:min(batch_size, centers.size()[0])]
 
-    def get_weights(self):
-        pass
+    def get_weights(self, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
+        """Get cell volumes.
+
+        For results obtained using a finite volume method with co-located
+        arrangement, a sensible weight for a cell-centered value is the cell
+        volume.
+
+        :return: cell volumes
+        :rtype: pt.Tensor
+        """
+        volumes = self._mesh.get_cell_volumes()
+        return volumes[start_at:min(batch_size, volumes.size()[0])]
 
 
 class FOAMCase(object):
@@ -189,6 +197,41 @@ class FOAMCase(object):
         self._processors = self._eval_processors()
         self._time_folders = self._eval_write_times()
         self._field_names = self._eval_field_names()
+        if not self._check_mesh_files():
+            sys.exit("Error: could not find valid mesh in case {:s}".format(
+                self._case._path))
+
+    def _is_binary(self, header):
+        for line in header:
+            if b"format" in line:
+                if b"binary" in line:
+                    return True
+                else:
+                    return False
+        return False
+
+    @main_bcast
+    def _check_mesh_files(self):
+        """Check if all mesh files are available.
+        """
+        if self._distributed:
+            files_found = []
+            for proc in range(self._processors):
+                files_found += [
+                    os.path.isfile(
+                        self._path + "/processor{:d}/".format(proc)
+                        + POLYMESH_PATH + mesh_file
+                    )
+                    for mesh_file in MESH_FILES
+                ]
+        else:
+            files_found = [
+                os.path.isfile(
+                    self._path + "/" + POLYMESH_PATH + mesh_file
+                )
+                for mesh_file in MESH_FILES
+            ]
+        return all(files_found)
 
     @main_bcast
     def _eval_distributed(self) -> bool:
@@ -273,7 +316,7 @@ class FOAMCase(object):
             ]
         return all_fields
 
-    def build_file_path(self, field_name: str, time: str, processor: int=0) -> str:
+    def build_file_path(self, field_name: str, time: str, processor: int = 0) -> str:
         """Create the path to file inside the time folder of a simulation.
 
         :param field_name: name of the field or file, e.g., \"U\" or \"p\"
@@ -329,45 +372,66 @@ class FOAMMesh(object):
     - **neighbour**: list of cell label that are face neighbors; BE spelling
     - **boundary**: definition of faces belonging to a patch
 
+    .. warning::
+            Dynamically changing meshes are currently not supported.
 
     .. automethod:: _compute_cell_centers_and_volumes
 
     """
 
-    def __init__(self, case: FOAMCase):
+    def __init__(self, case: FOAMCase, dtype: str = pt.float32):
         self._case = case
-        self._check_files()
-        self._vertices = None
-        self._n_cell_faces = None
-        self._faces = None
+        self._dtype = dtype
         self._cell_centers = None
         self._cell_volumes = None
 
-    def _check_files(self):
-        """Check if all mesh files are available.
-        """
-        pass
+    def _get_list_length(self, data):
+        """Find list length of points, faces, and cells.
 
-    def _parse_points(self):
+        :param data: number of elements in OpenFOAM list and line
+            with first list entry
+        :type data: tuple(int, int)
+        """
+        for i, line in enumerate(data):
+            try:
+                n_entries = int(line)
+            except:
+                pass
+            else:
+                return i, n_entries
+        return 0, 0
+
+    def _parse_points(self, mesh_path):
         """Parse mesh vertices defined in *constant/polyMesh/points*.
         """
-        pass
+        with open(mesh_path + "points", "rb") as file:
+            data = file.readlines()
+            start, length = self._get_list_length(data[:MAX_LINE_HEADER])
+            if self._case._is_binary(data[:MAX_LINE_HEADER]):
+                return pt.Tensor([0, 0, 0]).unsqueeze(-1)
+            else:
+                start += 2
+                return pt.tensor(
+                    [list(map(float, line[1:-2].split()))
+                     for line in data[start:start + 4]],
+                    dtype=self._dtype
+                )
 
-    def _parse_faces(self):
+    def _parse_faces(self, mesh_path):
         """Parse cell faces stored in in *constant/polyMesh/faces*.
         """
         pass
 
-    def _parse_owners_and_neighbors(self):
+    def _parse_owners_and_neighbors(self, mesh_path):
         """Parse face owners and neighbors.
-        
+
         - owners are parsed from *constant/polyMesh/owner*
         - neighbors are parsed from *constant/polyMesh/neighbour*
-        
+
         """
         pass
 
-    def _compute_cell_centers_and_volumes(self):
+    def _compute_cell_centers_and_volumes(self, mesh_path):
         """Compute the cell centers and volumes of an OpenFOAM mesh.
 
         The implemented algorithm is the same as in makeCellCentresAndVols_.
@@ -380,4 +444,44 @@ class FOAMMesh(object):
         .. _makeCellCentresAndVols: https://www.openfoam.com/documentation/guides/latest/api/classFoam_1_1primitiveMesh.html
 
         """
-        pass
+        points = self._parse_points(mesh_path)
+        n_points_faces, faces = self._parse_faces(mesh_path)
+        owners, neighbors = self._parse_owners_and_neighbors(mesh_path)
+
+    def _load_mesh(self) -> pt.Tensor:
+        """[summary]
+        """
+        if self._case._distributed:
+            proc_data = []
+            for proc in range(self._case._processors):
+                mesh_location = self._case._path + "/" + POLYMESH_PATH
+                proc_data.append(
+                    self._compute_cell_centers_and_volumes(mesh_location))
+            centers = pt.cat(list(zip(*proc_data))[0])
+            volumes = pt.cat(list(zip(*proc_data))[1])
+        else:
+            mesh_location = self._case._path + "/" + POLYMESH_PATH
+            centers, volumes = self._compute_cell_centers_and_volumes(
+                mesh_location)
+        self._cell_centers = centers
+        self._cell_volumes = volumes
+
+    def get_cell_centers(self) -> pt.Tensor:
+        """Return or compute and return control volume centers.
+
+        :return: control volume centers
+        :rtype: pt.Tensor
+        """
+        if self._cell_centers == None:
+            self._load_mesh()
+        return self._cell_centers
+
+    def get_cell_volumes(self) -> pt.Tensor:
+        """Return or compute and return cell volumes.
+
+        :return: cell volumes
+        :rtype: pt.Tensor
+        """
+        if self._cell_volumes == None:
+            self._load_mesh()
+        return self._cell_volumes

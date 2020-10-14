@@ -2,7 +2,7 @@ import os
 import pytest
 import sys
 import torch as pt
-from flowtorch.data import FOAMDataloader, FOAMCase
+from flowtorch.data import FOAMDataloader, FOAMCase, FOAMMesh
 
 # default data type is float32
 FLOAT_TOLERANCE = 1.0e-4
@@ -98,6 +98,12 @@ class FOAMTestData:
             "cavity_ascii_parallel": U_sum_parallel,
             "cavity_binary_parallel": U_sum_parallel
         }
+        self.mesh_paths = {
+            "cavity_ascii": "/constant/polyMesh/",
+            "cavity_binary": "/constant/polyMesh/",
+            "cavity_ascii_parallel": "/processor0/constant/polyMesh/",
+            "cavity_binary_parallel": "/processor0/constant/polyMesh/"
+        }
 
 
 @pytest.fixture()
@@ -138,6 +144,25 @@ class TestFOAMCase:
             case = FOAMCase(get_test_data.paths[key])
             field_names = get_test_data.field_names[key]
             assert field_names == case._field_names
+
+    def test_check_files(self, get_test_data):
+        for key in get_test_data.paths.keys():
+            case = FOAMCase(get_test_data.paths[key])
+            assert case._check_mesh_files() is True
+
+
+class TestFOAMMesh:
+    def test_parse_points(self, get_test_data):
+        for key in get_test_data.paths.keys():
+            case = FOAMCase(get_test_data.paths[key])
+            mesh = FOAMMesh(case)
+            mesh_path = get_test_data.mesh_paths[key]
+            points = mesh._parse_points(case._path + mesh_path)
+            assert pt.sum(
+                pt.abs(
+                    points[0, :] - pt.Tensor([0, 0, 0])
+                )
+            ).item() < FLOAT_TOLERANCE
 
 
 class TestFOAMDataloader:
