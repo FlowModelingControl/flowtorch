@@ -104,6 +104,51 @@ class FOAMTestData:
             "cavity_ascii_parallel": "/processor0/constant/polyMesh/",
             "cavity_binary_parallel": "/processor0/constant/polyMesh/"
         }
+        self.n_points = {
+            "cavity_ascii": 882,
+            "cavity_binary": 882,
+            "cavity_ascii_parallel": 242,
+            "cavity_binary_parallel": 242
+        }
+        self.n_faces = {
+            "cavity_ascii": 1640,
+            "cavity_binary": 1640,
+            "cavity_ascii_parallel": 420,
+            "cavity_binary_parallel": 420
+        }
+        self.first_faces = {
+            "cavity_ascii": pt.tensor([1, 22, 463, 442], dtype=pt.int32),
+            "cavity_binary": pt.tensor([1, 22, 463, 442], dtype=pt.int32),
+            "cavity_ascii_parallel": pt.tensor([1, 12, 133, 122], dtype=pt.int32),
+            "cavity_binary_parallel": pt.tensor([1, 12, 133, 122], dtype=pt.int32)
+        }
+        self.n_neighbors = {
+            "cavity_ascii": 760,
+            "cavity_binary": 760,
+            "cavity_ascii_parallel": 180,
+            "cavity_binary_parallel": 180
+        }
+        self.first_n_owners = {
+            "cavity_ascii": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
+            "cavity_binary": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
+            "cavity_ascii_parallel": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
+            "cavity_binary_parallel": pt.tensor([0, 0, 1, 1], dtype=pt.int32)
+        }
+        self.first_n_neighbors = {
+            "cavity_ascii": pt.tensor([1, 20, 2, 21], dtype=pt.int32),
+            "cavity_binary": pt.tensor([1, 20, 2, 21], dtype=pt.int32),
+            "cavity_ascii_parallel": pt.tensor([1, 10, 2, 11], dtype=pt.int32),
+            "cavity_binary_parallel": pt.tensor([1, 10, 2, 11], dtype=pt.int32)
+        }
+        self.n_centers_volumes = {
+            "cavity_ascii": 400,
+            "cavity_binary": 400,
+            "cavity_ascii_parallel": 100,
+            "cavity_binary_parallel": 100
+        }
+        self.first_center = pt.tensor(
+            [0.0025, 0.0025, 0.005], dtype=pt.float32)
+        self.cell_volume = 2.5e-7
 
 
 @pytest.fixture()
@@ -163,6 +208,40 @@ class TestFOAMMesh:
                     points[0, :] - pt.Tensor([0, 0, 0])
                 )
             ).item() < FLOAT_TOLERANCE
+            n_points = get_test_data.n_points[key]
+            assert points.size()[0] == n_points
+
+    def test_parse_faces(self, get_test_data):
+        for key in get_test_data.paths.keys():
+            case = FOAMCase(get_test_data.paths[key])
+            mesh = FOAMMesh(case)
+            mesh_path = get_test_data.mesh_paths[key]
+            n_points_faces, faces = mesh._parse_faces(case._path + mesh_path)
+            n_faces = get_test_data.n_faces[key]
+            first_face = get_test_data.first_faces[key]
+            assert faces.size()[0] == n_faces
+            assert pt.sum(n_points_faces - 4).item() == 0
+            assert pt.sum(faces[0] - first_face).item() == 0
+
+    def test_parse_owners_and_neighbors(self, get_test_data):
+        for key in get_test_data.paths.keys():
+            case = FOAMCase(get_test_data.paths[key])
+            mesh = FOAMMesh(case)
+            mesh_path = get_test_data.mesh_paths[key]
+            owners, neighbors = mesh._parse_owners_and_neighbors(
+                case._path + mesh_path)
+            n_owners = get_test_data.n_faces[key]
+            n_neighbors = get_test_data.n_neighbors[key]
+            first_owners = get_test_data.first_n_owners[key]
+            first_neighbors = get_test_data.first_n_neighbors[key]
+            assert owners.size()[0] == n_owners
+            assert neighbors.size()[0] == n_neighbors
+            assert pt.sum(
+                owners[:len(first_owners)] - first_owners
+            ).item() == 0
+            assert pt.sum(
+                neighbors[:len(first_neighbors)] - first_neighbors
+            ).item() == 0
 
 
 class TestFOAMDataloader:

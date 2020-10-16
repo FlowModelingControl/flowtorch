@@ -31,6 +31,7 @@ MAX_LINE_INTERNAL_FIELD = 25
 BIG_INT = 1e15
 
 SIZE_OF_CHAR = struct.calcsize("c")
+SIZE_OF_INT = struct.calcsize("i")
 SIZE_OF_DOUBLE = struct.calcsize("d")
 
 
@@ -382,6 +383,7 @@ class FOAMMesh(object):
     def __init__(self, case: FOAMCase, dtype: str = pt.float32):
         self._case = case
         self._dtype = dtype
+        self._itype = pt.int32
         self._cell_centers = None
         self._cell_volumes = None
 
@@ -408,19 +410,67 @@ class FOAMMesh(object):
             data = file.readlines()
             start, length = self._get_list_length(data[:MAX_LINE_HEADER])
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
-                return pt.Tensor([0, 0, 0]).unsqueeze(-1)
+                start += 1
+                buffer = b"".join(data[start:])
+                values = struct.unpack(
+                    "{}d".format(3*length),
+                    buffer[SIZE_OF_CHAR:SIZE_OF_CHAR+SIZE_OF_DOUBLE*length*3]
+                )
+                return pt.tensor(values, dtype=self._dtype).reshape(length, 3)
             else:
                 start += 2
                 return pt.tensor(
                     [list(map(float, line[1:-2].split()))
-                     for line in data[start:start + 4]],
+                     for line in data[start:start + length]],
                     dtype=self._dtype
                 )
 
     def _parse_faces(self, mesh_path):
         """Parse cell faces stored in in *constant/polyMesh/faces*.
         """
-        pass
+        def zero_pad(tensor, new_size):
+            """Increase size of second tensor dimesion.
+            """
+            diff = new_size - tensor.size()[1]
+            pad = pt.zeros((tensor.size()[0], diff), dtype=self._itype)
+            return pt.cat([tensor, pad], dim=1)
+
+        with open(mesh_path + "faces", "rb") as file:
+            data = file.readlines()
+            start, length = self._get_list_length(data[:MAX_LINE_HEADER])
+            if self._case._is_binary(data[:MAX_LINE_HEADER]):
+                n_points_faces = pt.zeros((length-1, 1), dtype=self._itype)
+                faces = pt.zeros_like(n_points_faces, dtype=self._itype)
+                start += 1
+                buffer = b"".join(data[start:])
+                idx = struct.unpack(
+                    "{}i".format(length),
+                    buffer[SIZE_OF_CHAR:SIZE_OF_CHAR + SIZE_OF_INT*length]
+                )
+                offset = SIZE_OF_CHAR + 2 * SIZE_OF_INT
+                values = struct.unpack(
+                    "{}i".format(idx[-1]),
+                    buffer[offset+SIZE_OF_INT*length:offset +
+                           (length+idx[-1])*SIZE_OF_INT]
+                )
+                for i in range(length-1):
+                    face_labels = pt.tensor(values[idx[i]:idx[i+1]], dtype=self._itype)
+                    n_points_faces[i] = len(face_labels)
+                    if len(face_labels) > faces.size()[1]:
+                        faces = zero_pad(faces, len(face_labels))
+                    faces[i][:len(face_labels)] = face_labels
+            else:
+                n_points_faces = pt.zeros((length, 1), dtype=self._itype)
+                faces = pt.zeros_like(n_points_faces, dtype=self._itype)
+                start += 2
+                for i, line in enumerate(data[start:start + length]):
+                    n_points_faces[i] = int(line[:1])
+                    face_labels = pt.tensor(
+                        list(map(int, line[2:-2].split())), dtype=self._itype)
+                    if len(face_labels) > faces.size()[1]:
+                        faces = zero_pad(faces, len(face_labels))
+                    faces[i][:len(face_labels)] = face_labels
+            return n_points_faces, faces
 
     def _parse_owners_and_neighbors(self, mesh_path):
         """Parse face owners and neighbors.
