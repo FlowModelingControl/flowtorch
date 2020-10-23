@@ -26,8 +26,8 @@ POLYMESH_PATH = "constant/polyMesh/"
 MESH_FILES = ["points", "owner", "neighbour", "faces", "boundary"]
 
 
-MAX_LINE_HEADER = 20
-MAX_LINE_INTERNAL_FIELD = 25
+MAX_LINE_HEADER = 30
+MAX_LINE_INTERNAL_FIELD = 40
 BIG_INT = 1e15
 
 SIZE_OF_CHAR = struct.calcsize("c")
@@ -403,6 +403,24 @@ class FOAMMesh(object):
                 return i, n_entries
         return 0, 0
 
+    def _get_n_cells(self, mesh_path):
+        """Extract number of cells from *owner* file.
+
+        :param mesh_path: polyMesh location
+        :type mesh_path: str
+        """
+        n_cells = 0
+        with open(mesh_path + "owner", "rb") as file:
+            header = [next(file) for _ in range(MAX_LINE_HEADER)]
+            for line in header:
+                if b"note" in line:
+                    tokens = line.split()
+                    for token in tokens:
+                        if b"nCells" in token:
+                            n_cells = int(token.split(b":")[1])
+        return n_cells
+
+
     def _parse_points(self, mesh_path):
         """Parse mesh vertices defined in *constant/polyMesh/points*.
         """
@@ -479,13 +497,70 @@ class FOAMMesh(object):
         - neighbors are parsed from *constant/polyMesh/neighbour*
 
         """
-        pass
+        with open(mesh_path + "owner", "rb") as file:
+            data = file.readlines()
+            start, length = self._get_list_length(data[:MAX_LINE_HEADER])
+            if self._case._is_binary(data[:MAX_LINE_HEADER]):
+                start += 1
+                buffer = b"".join(data[start:])
+                owner_values = struct.unpack(
+                    "{}i".format(length),
+                    buffer[SIZE_OF_CHAR:SIZE_OF_CHAR+SIZE_OF_INT*length]
+                )
+            else:
+                start += 2
+                owner_values = [
+                    int(line[:-1]) for line in data[start:start + length]
+                ]
 
-    def _compute_cell_centers_and_volumes(self, mesh_path):
+        with open(mesh_path + "neighbour", "rb") as file:
+            data = file.readlines()
+            start, length = self._get_list_length(data[:MAX_LINE_HEADER])
+            if self._case._is_binary(data[:MAX_LINE_HEADER]):
+                start += 1
+                buffer = b"".join(data[start:])
+                neighbor_values = struct.unpack(
+                    "{}i".format(length),
+                    buffer[SIZE_OF_CHAR:SIZE_OF_CHAR+SIZE_OF_INT*length]
+                )
+            else:
+                start += 2
+                neighbor_values = [
+                    int(line[:-1]) for line in data[start:start + length]
+                ]
+
+        return (
+            pt.tensor(owner_values, dtype=self._itype),
+            pt.tensor(neighbor_values, dtype=self._itype)
+        )
+
+    def _compute_face_centers_and_areas(self, points, faces, n_points_faces) -> tuple:
+        """Compute face center and area.
+
+        The implemented algorithm is close to the one in makeFaceCentresAndAreas_.
+
+        .. _makeFaceCentresAndAreas: https://www.openfoam.com/documentation/guides/latest/api/primitiveMeshFaceCentresAndAreas_8C_source.html
+        """
+        face_centers = pt.zeros((n_points_faces.size()[0], 3), dtype=self._dtype)
+        face_areas = pt.zeros_like(n_points_faces, dtype=self._dtype)
+        
+        for i, face in enumerate(faces):
+            center_estimate = points[faces[i, 0]]
+            for pi in range(1, n_points_faces[i]):
+                center_estimate += points[faces[i, pi]]
+            center_estimate /= n_points_faces[i]
+
+            for pi in range(n_points_faces[i]):
+                next_pi = 0 if pi == n_points_faces[i]-1 else pi + 1
+                next_p = points[faces[i, next_pi]]
+                this_p = points[faces[i, pi]]
+
+        return face_centers, face_areas
+
+    def _compute_cell_centers_and_volumes(self, mesh_path) -> tuple:
         """Compute the cell centers and volumes of an OpenFOAM mesh.
 
-        The implemented algorithm is the same as in makeCellCentresAndVols_.
-        OpenFOAM uses 
+        The implemented algorithm is close to the one in makeCellCentresAndVols_.
         The following steps are involved:
 
         1. compute an estimate of the cell center as the sum over all face centers of a cell
@@ -498,7 +573,21 @@ class FOAMMesh(object):
         n_points_faces, faces = self._parse_faces(mesh_path)
         owners, neighbors = self._parse_owners_and_neighbors(mesh_path)
 
-    def _load_mesh(self) -> pt.Tensor:
+        face_centers, face_areas = self._compute_face_centers_and_areas(
+            points, faces, n_points_faces
+        )
+
+        n_cells = self._get_n_cells(mesh_path)
+        cell_centers = pt.zeros((n_cells, 3), dtype=self._dtype)
+        cell_volumes = pt.zeros(n_cells, dtype=self._dtype)
+        center_estimate = pt.zeros_like(cell_centers)
+        n_faces_cell = pt.zeros(n_cells, dtype=self._itype)
+
+
+
+        return cell_centers, cell_volumes
+
+    def _load_mesh(self):
         """[summary]
         """
         if self._case._distributed:

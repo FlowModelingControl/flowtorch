@@ -243,6 +243,22 @@ class TestFOAMMesh:
                 neighbors[:len(first_neighbors)] - first_neighbors
             ).item() == 0
 
+    def test_compute_cell_centers_and_volumes(self, get_test_data):
+        for key in get_test_data.paths.keys():
+            case = FOAMCase(get_test_data.paths[key])
+            mesh = FOAMMesh(case)
+            mesh_path = get_test_data.mesh_paths[key]
+            centers, volumes = mesh._compute_cell_centers_and_volumes(
+                case._path + mesh_path)
+            assert centers.size()[0] == get_test_data.n_centers_volumes[key]
+            assert volumes.size()[0] == get_test_data.n_centers_volumes[key]
+            assert pt.sum(
+                centers[0] - get_test_data.first_center
+            ).item() == 0
+            assert pt.sum(
+                volumes - get_test_data.cell_volume
+            ).item() == 0
+
 
 class TestFOAMDataloader:
     def test_load_scalar_snapshot(self, get_test_data):
