@@ -370,7 +370,7 @@ class FOAMMesh(object):
     - **points**: list of vertices forming cell faces; the list index of a point is used as label
     - **faces**: list of all cell faces defined as point labels
     - **owner**: list of cell labels that are face owners
-    - **neighbour**: list of cell label that are face neighbors; BE spelling
+    - **neighbour**: list of cell labels that are face neighbors; BE spelling
     - **boundary**: definition of faces belonging to a patch
 
     .. warning::
