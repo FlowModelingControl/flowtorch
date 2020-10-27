@@ -376,6 +376,24 @@ class FOAMMesh(object):
     .. warning::
             Dynamically changing meshes are currently not supported.
 
+    Examples
+
+    >>> from flowtorch.data import FOAMCase, FOAMMesh
+    >>> case = FOAMCase("./")
+    >>> mesh = FOAMMesh(case)
+    >>> centers = mesh.get_cell_centers()
+    >>> centers.size()
+    torch.Size([400, 3])
+    >>> centers[:2]
+    tensor([[0.0025, 0.0025, 0.0050],
+            [0.0075, 0.0025, 0.0050]])
+    >>> volumes = mesh.get_cell_volumes()
+    >>> volumes.size()
+    torch.Size([400])
+    >>> volumes[:2]
+    tensor([2.5000e-07, 2.5000e-07])
+
+    .. automethod:: _compute_face_centers_and_areas
     .. automethod:: _compute_cell_centers_and_volumes
 
     """
@@ -643,7 +661,8 @@ class FOAMMesh(object):
         if self._case._distributed:
             proc_data = []
             for proc in range(self._case._processors):
-                mesh_location = self._case._path + "/processor{:d}/".format(proc) + POLYMESH_PATH
+                mesh_location = self._case._path + \
+                    "/processor{:d}/".format(proc) + POLYMESH_PATH
                 proc_data.append(
                     self._compute_cell_centers_and_volumes(mesh_location)
                 )
