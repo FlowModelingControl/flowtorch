@@ -58,5 +58,5 @@ If you encounter any issues using *flowTorch*, please use the repository's [issu
 
 ## License
 
-*flowTorch* is [MIT](https://en.wikipedia.org/wiki/MIT_License)-licensed; refer to the [LICENSE](https://github.com/AndreWeiner/flowtorch/blob/main/LICENSE) file for more information.
+*flowTorch* is [GPLv3](https://en.wikipedia.org/wiki/GNU_General_Public_License)-licensed; refer to the [LICENSE](https://github.com/AndreWeiner/flowtorch/blob/main/LICENSE) file for more information.
 
