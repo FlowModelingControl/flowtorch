@@ -11,14 +11,21 @@ from .dataloader import Dataloader
 from .xdmf import XDMFWriter
 from os.path import exists, isfile
 from h5py import File
+from mpi4py import MPI
 import torch as pt
 
-FILE_NAME = "flowtorch.hdf5"
+
+CONST_GROUP = "constant"
+VAR_GROUP = "variable"
+VERTICES_DS = "vertices"
+CONNECTIVITY_DS = "connectivity"
+
 
 class HDF5Dataloader(Dataloader):
     """
     """
-    def __init__(self, path, file_name=FILE_NAME, dtype=pt.float32):
+
+    def __init__(self, file: str, dtype: str = pt.float32):
         """
 
         :param path: [description]
@@ -29,7 +36,6 @@ class HDF5Dataloader(Dataloader):
         :type dtype: [type], optional
         """
         pass
-
 
     def write_times(self):
         pass
@@ -48,17 +54,20 @@ class HDF5Dataloader(Dataloader):
 
 
 class HDF5Writer(object):
-    def __init__(self, path, file_name=FILE_NAME, dtype=pt.float32):
-        pass
+    def __init__(self, file: str, dtype: str = pt.float32):
+        self._file = File(file, "a", driver="mpio", comm=MPI.COMM_WORLD)
+        self._dtype = dtype
 
-    def write(self, field_name, data):
-        pass
+    def write(self, field: pt.Tensor, name: str, time: str):
+        ds_name = VAR_GROUP + "/{:s}/{:s}".format(time, name)
+        self._file.create_dataset(ds_name, data=field.numpy(), dtype=self._dtype)
 
     def write_xdmf(self):
         pass
 
-    def write_mesh(self):
-        pass
+    def write_const(self, field: pt.Tensor, name: str):
+        ds_name = CONST_GROUP + "/{:s}".format(name)
+        self._file.create_dataset(ds_name, data=field.numpy(), dtype=self._dtype)
 
 
 class FOAM2HDF5(object):
