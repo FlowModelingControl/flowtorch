@@ -1,0 +1,9 @@
+matplotlib
+mpi4py
+h5py
+jupyterlab
+sphinx
+sphinx_rtd_theme
+nbsphinx
+pytest
+torch==1.6.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
