@@ -1,5 +1,7 @@
 matplotlib
 jupyterlab
+mpi4py
+h5py
 sphinx
 sphinx_rtd_theme
 nbsphinx
