@@ -1,6 +1,4 @@
 matplotlib
-mpi4py
-h5py
 jupyterlab
 sphinx
 sphinx_rtd_theme
