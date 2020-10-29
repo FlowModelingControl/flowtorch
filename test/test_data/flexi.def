@@ -1,0 +1,30 @@
+Bootstrap: docker
+From: ubuntu:18.04
+
+%post
+  apt-get update -y
+  apt-get install -y --no-install-recommends \
+	git \
+    make \
+	cmake \
+    ca-certificates \
+	liblapack3 \
+	liblapack-dev \
+    gfortran \
+	g++ \
+	mpi-default-dev \
+    openmpi-bin \
+    openssh-client \
+    wget \
+    tar \
+    xz-utils \
+	zlib1g-dev
+
+  cd /opt/
+  git clone https://github.com/flexi-framework/flexi.git
+  cd flexi
+  mkdir build; cd build
+  cmake ../
+  make
+  echo "alias flexi='/opt/flexi/build/bin/flexi'" >> /etc/bash.bashrc
+
