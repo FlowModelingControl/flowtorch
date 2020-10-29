@@ -6,4 +6,5 @@ sphinx
 sphinx_rtd_theme
 nbsphinx
 pytest
-torch==1.6.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch==1.6.0+cpu
