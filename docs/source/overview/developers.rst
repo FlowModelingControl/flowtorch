@@ -4,8 +4,8 @@ Developer's guide
 Getting the flowTorch sources
 -----------------------------
 
-Continuous integration model
-----------------------------
+Test-driven development
+-----------------------
 
 Building Singularity and Docker images
 --------------------------------------
@@ -29,5 +29,3 @@ Documenting code
 Building the documentation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Updating the documentation on *ReadTheDocs*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
