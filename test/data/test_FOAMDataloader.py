@@ -149,6 +149,7 @@ class FOAMTestData:
         self.first_center = pt.tensor(
             [0.0025, 0.0025, 0.005], dtype=pt.float32)
         self.cell_volume = 2.5e-7
+        self.n_cells = 400
 
 
 @pytest.fixture()
@@ -242,6 +243,37 @@ class TestFOAMMesh:
             assert pt.sum(
                 neighbors[:len(first_neighbors)] - first_neighbors
             ).item() == 0
+
+    def test_compute_cell_centers_and_volumes(self, get_test_data):
+        for key in get_test_data.paths.keys():
+            case = FOAMCase(get_test_data.paths[key])
+            mesh = FOAMMesh(case)
+            mesh_path = get_test_data.mesh_paths[key]
+            centers, volumes = mesh._compute_cell_centers_and_volumes(
+                case._path + mesh_path)
+            assert centers.size()[0] == get_test_data.n_centers_volumes[key]
+            assert volumes.size()[0] == get_test_data.n_centers_volumes[key]
+            assert pt.sum(
+                centers[0] - get_test_data.first_center
+            ).item() < FLOAT_TOLERANCE
+            assert pt.sum(
+                volumes - get_test_data.cell_volume
+            ).item() < FLOAT_TOLERANCE
+
+    def test_get_cell_centers(self, get_test_data):
+        for key in get_test_data.paths.keys():
+            case = FOAMCase(get_test_data.paths[key])
+            mesh = FOAMMesh(case)
+            centers = mesh.get_cell_centers()
+            volumes = mesh.get_cell_volumes()
+            assert centers.size()[0] == get_test_data.n_cells
+            assert volumes.size()[0] == get_test_data.n_cells
+            assert pt.sum(
+                centers[0] - get_test_data.first_center
+            ).item() < FLOAT_TOLERANCE
+            assert pt.sum(
+                volumes - get_test_data.cell_volume
+            ).item() < FLOAT_TOLERANCE
 
 
 class TestFOAMDataloader:

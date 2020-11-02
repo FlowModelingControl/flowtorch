@@ -26,8 +26,8 @@ POLYMESH_PATH = "constant/polyMesh/"
 MESH_FILES = ["points", "owner", "neighbour", "faces", "boundary"]
 
 
-MAX_LINE_HEADER = 20
-MAX_LINE_INTERNAL_FIELD = 25
+MAX_LINE_HEADER = 30
+MAX_LINE_INTERNAL_FIELD = 40
 BIG_INT = 1e15
 
 SIZE_OF_CHAR = struct.calcsize("c")
@@ -370,12 +370,30 @@ class FOAMMesh(object):
     - **points**: list of vertices forming cell faces; the list index of a point is used as label
     - **faces**: list of all cell faces defined as point labels
     - **owner**: list of cell labels that are face owners
-    - **neighbour**: list of cell label that are face neighbors; BE spelling
+    - **neighbour**: list of cell labels that are face neighbors; BE spelling
     - **boundary**: definition of faces belonging to a patch
 
     .. warning::
             Dynamically changing meshes are currently not supported.
 
+    Examples
+
+    >>> from flowtorch.data import FOAMCase, FOAMMesh
+    >>> case = FOAMCase("./")
+    >>> mesh = FOAMMesh(case)
+    >>> centers = mesh.get_cell_centers()
+    >>> centers.size()
+    torch.Size([400, 3])
+    >>> centers[:2]
+    tensor([[0.0025, 0.0025, 0.0050],
+            [0.0075, 0.0025, 0.0050]])
+    >>> volumes = mesh.get_cell_volumes()
+    >>> volumes.size()
+    torch.Size([400])
+    >>> volumes[:2]
+    tensor([2.5000e-07, 2.5000e-07])
+
+    .. automethod:: _compute_face_centers_and_areas
     .. automethod:: _compute_cell_centers_and_volumes
 
     """
@@ -402,6 +420,23 @@ class FOAMMesh(object):
             else:
                 return i, n_entries
         return 0, 0
+
+    def _get_n_cells(self, mesh_path):
+        """Extract number of cells from *owner* file.
+
+        :param mesh_path: polyMesh location
+        :type mesh_path: str
+        """
+        n_cells = 0
+        with open(mesh_path + "owner", "rb") as file:
+            header = file.readlines()[:MAX_LINE_HEADER]
+            for line in header:
+                if b"note" in line:
+                    tokens = line.split()
+                    for token in tokens:
+                        if b"nCells" in token:
+                            n_cells = int(token.split(b":")[1])
+        return n_cells
 
     def _parse_points(self, mesh_path):
         """Parse mesh vertices defined in *constant/polyMesh/points*.
@@ -454,7 +489,8 @@ class FOAMMesh(object):
                            (length+idx[-1])*SIZE_OF_INT]
                 )
                 for i in range(length-1):
-                    face_labels = pt.tensor(values[idx[i]:idx[i+1]], dtype=self._itype)
+                    face_labels = pt.tensor(
+                        values[idx[i]:idx[i+1]], dtype=self._itype)
                     n_points_faces[i] = len(face_labels)
                     if len(face_labels) > faces.size()[1]:
                         faces = zero_pad(faces, len(face_labels))
@@ -479,34 +515,157 @@ class FOAMMesh(object):
         - neighbors are parsed from *constant/polyMesh/neighbour*
 
         """
-        pass
+        with open(mesh_path + "owner", "rb") as file:
+            data = file.readlines()
+            start, length = self._get_list_length(data[:MAX_LINE_HEADER])
+            if self._case._is_binary(data[:MAX_LINE_HEADER]):
+                start += 1
+                buffer = b"".join(data[start:])
+                owner_values = struct.unpack(
+                    "{}i".format(length),
+                    buffer[SIZE_OF_CHAR:SIZE_OF_CHAR+SIZE_OF_INT*length]
+                )
+            else:
+                start += 2
+                owner_values = [
+                    int(line[:-1]) for line in data[start:start + length]
+                ]
 
-    def _compute_cell_centers_and_volumes(self, mesh_path):
+        with open(mesh_path + "neighbour", "rb") as file:
+            data = file.readlines()
+            start, length = self._get_list_length(data[:MAX_LINE_HEADER])
+            if self._case._is_binary(data[:MAX_LINE_HEADER]):
+                start += 1
+                buffer = b"".join(data[start:])
+                neighbor_values = struct.unpack(
+                    "{}i".format(length),
+                    buffer[SIZE_OF_CHAR:SIZE_OF_CHAR+SIZE_OF_INT*length]
+                )
+            else:
+                start += 2
+                neighbor_values = [
+                    int(line[:-1]) for line in data[start:start + length]
+                ]
+
+        return (
+            pt.tensor(owner_values, dtype=self._itype),
+            pt.tensor(neighbor_values, dtype=self._itype)
+        )
+
+    def _compute_face_centers_and_areas(self, points, faces, n_points_faces) -> tuple:
+        """Compute face center and area.
+
+        The implemented algorithm is close to the one in makeFaceCentresAndAreas_.
+        The main steps are:
+
+        1. compute an estimate of the face center by averaging all face vertices
+        2. decompose the face into triangles
+        3. compute the sum over all area-weighted triangle centroids, triangle areas,
+           and face area normal vectors
+        4. compute the face centroid and face area normal from the (weighted) sums
+
+        .. _makeFaceCentresAndAreas: https://www.openfoam.com/documentation/guides/latest/api/primitiveMeshFaceCentresAndAreas_8C_source.html
+        """
+        face_centers = pt.zeros(
+            (n_points_faces.size()[0], 3), dtype=self._dtype)
+        face_areas = pt.zeros_like(face_centers, dtype=self._dtype)
+
+        for i, face in enumerate(faces):
+            center_estimate = points[face[0]].clone().detach()
+            for pi in range(1, n_points_faces[i]):
+                center_estimate += points[face[pi]]
+            center_estimate /= n_points_faces[i]
+
+            sum_n = pt.zeros(3, dtype=self._dtype)
+            sum_ac = pt.zeros(3, dtype=self._dtype)
+            sum_a = 0.0
+            for pi in range(n_points_faces[i]):
+                next_pi = 0 if pi == n_points_faces[i]-1 else pi + 1
+                next_p = points[face[next_pi]]
+                this_p = points[face[pi]]
+                c = this_p + next_p + center_estimate
+                n = pt.cross(next_p - this_p, center_estimate - this_p)
+                a = pt.norm(n)
+                sum_n += n
+                sum_a += a.item()
+                sum_ac += a*c
+            face_centers[i] = sum_ac / sum_a / 3.0
+            face_areas[i] = 0.5 * sum_n
+
+        return face_centers, face_areas
+
+    def _compute_cell_centers_and_volumes(self, mesh_path) -> tuple:
         """Compute the cell centers and volumes of an OpenFOAM mesh.
 
-        The implemented algorithm is the same as in makeCellCentresAndVols_.
-        OpenFOAM uses 
+        The implemented algorithm is close to the one in makeCellCentresAndVols_.
         The following steps are involved:
 
-        1. compute an estimate of the cell center as the sum over all face centers of a cell
-        2. 
+        1. compute an estimate of the cell center as the average over all face centers
+        2. compute centroids and volumes of all pyramids formed by the cell faces and
+           and the center estimate
+        3. the cell volume equals the sum over all pyramid volumes
+        4. the cell center is the volume-weighted average of all pyramid centroids
 
-        .. _makeCellCentresAndVols: https://www.openfoam.com/documentation/guides/latest/api/classFoam_1_1primitiveMesh.html
+        .. _makeCellCentresAndVols: https://www.openfoam.com/documentation/guides/latest/api/primitiveMeshCellCentresAndVols_8C_source.html
 
         """
         points = self._parse_points(mesh_path)
         n_points_faces, faces = self._parse_faces(mesh_path)
         owners, neighbors = self._parse_owners_and_neighbors(mesh_path)
+        face_centers, face_areas = self._compute_face_centers_and_areas(
+            points, faces, n_points_faces
+        )
 
-    def _load_mesh(self) -> pt.Tensor:
-        """[summary]
+        n_cells = self._get_n_cells(mesh_path)
+        cell_centers = pt.zeros((n_cells, 3), dtype=self._dtype)
+        cell_volumes = pt.zeros(n_cells, dtype=self._dtype)
+        center_estimate = pt.zeros_like(cell_centers)
+        n_faces_cell = pt.zeros(n_cells, dtype=self._itype)
+
+        for i, owner in enumerate(owners):
+            center_estimate[owner] += face_centers[i]
+            n_faces_cell[owner] += 1
+
+        for i, neigh in enumerate(neighbors):
+            center_estimate[neigh] += face_centers[i]
+            n_faces_cell[neigh] += 1
+        center_estimate /= n_faces_cell.unsqueeze(-1)
+
+        for i, owner in enumerate(owners):
+            pyr_3vol = pt.dot(
+                face_areas[i],
+                face_centers[i] - center_estimate[owner]
+            )
+
+            pyr_ctr = 3.0/4.0 * face_centers[i] + center_estimate[owner] / 4.0
+            cell_centers[owner] += pyr_3vol * pyr_ctr
+            cell_volumes[owner] += pyr_3vol
+
+        for i, neigh in enumerate(neighbors):
+            pyr_3vol = pt.dot(
+                face_areas[i],
+                center_estimate[neigh] - face_centers[i]
+            )
+            pyr_ctr = 3.0/4.0 * face_centers[i] + center_estimate[neigh] / 4.0
+            cell_centers[neigh] += pyr_3vol * pyr_ctr
+            cell_volumes[neigh] += pyr_3vol
+
+        cell_centers /= cell_volumes.unsqueeze(-1)
+        cell_volumes /= 3.0
+
+        return cell_centers, cell_volumes
+
+    def _load_mesh(self):
+        """Load and reconstruct mesh if distributed.
         """
         if self._case._distributed:
             proc_data = []
             for proc in range(self._case._processors):
-                mesh_location = self._case._path + "/" + POLYMESH_PATH
+                mesh_location = self._case._path + \
+                    "/processor{:d}/".format(proc) + POLYMESH_PATH
                 proc_data.append(
-                    self._compute_cell_centers_and_volumes(mesh_location))
+                    self._compute_cell_centers_and_volumes(mesh_location)
+                )
             centers = pt.cat(list(zip(*proc_data))[0])
             volumes = pt.cat(list(zip(*proc_data))[1])
         else:

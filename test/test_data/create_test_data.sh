@@ -14,7 +14,7 @@ if [ ! -f ${image_base_name}.sif ]; then
   echo -e "Error: could not find singularity image \033[1m${image_base_name}.sif\033[0m"
   echo "To build the image, run"
   echo ""
-  echo "sudo singularity build ${image_base_name}.def ${image_base_name}.sif"
+  echo "sudo singularity build ${image_base_name}.sif ${image_base_name}.def"
   echo ""
   exit 1
 fi
