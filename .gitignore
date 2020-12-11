@@ -5,3 +5,4 @@ test/test_data/run
 .ipynb_checkpoints
 .vscode
 *.sif
+external_data
