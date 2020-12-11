@@ -12,10 +12,10 @@ class FOAMTestData:
     def __init__(self):
         self.data_path = "test/test_data/run/"
         self.test_cases = [
-            "cavity_ascii",
-            "cavity_binary",
-            "cavity_ascii_parallel",
-            "cavity_binary_parallel"
+            "of_cavity_ascii",
+            "of_cavity_binary",
+            "of_cavity_ascii_parallel",
+            "of_cavity_binary_parallel"
         ]
         self.distributed = dict(
             zip(self.test_cases, [False, False, True, True])
@@ -87,64 +87,64 @@ class FOAMTestData:
             "0.5": [3.25138675e-01, 1.81006770e-02, 0.00000000e+00]
         }
         self.p_sum = {
-            "cavity_ascii": p_sum_serial,
-            "cavity_binary": p_sum_serial,
-            "cavity_ascii_parallel": p_sum_parallel,
-            "cavity_binary_parallel": p_sum_parallel
+            "of_cavity_ascii": p_sum_serial,
+            "of_cavity_binary": p_sum_serial,
+            "of_cavity_ascii_parallel": p_sum_parallel,
+            "of_cavity_binary_parallel": p_sum_parallel
         }
         self.U_sum = {
-            "cavity_ascii": U_sum_serial,
-            "cavity_binary": U_sum_serial,
-            "cavity_ascii_parallel": U_sum_parallel,
-            "cavity_binary_parallel": U_sum_parallel
+            "of_cavity_ascii": U_sum_serial,
+            "of_cavity_binary": U_sum_serial,
+            "of_cavity_ascii_parallel": U_sum_parallel,
+            "of_cavity_binary_parallel": U_sum_parallel
         }
         self.mesh_paths = {
-            "cavity_ascii": "/constant/polyMesh/",
-            "cavity_binary": "/constant/polyMesh/",
-            "cavity_ascii_parallel": "/processor0/constant/polyMesh/",
-            "cavity_binary_parallel": "/processor0/constant/polyMesh/"
+            "of_cavity_ascii": "/constant/polyMesh/",
+            "of_cavity_binary": "/constant/polyMesh/",
+            "of_cavity_ascii_parallel": "/processor0/constant/polyMesh/",
+            "of_cavity_binary_parallel": "/processor0/constant/polyMesh/"
         }
         self.n_points = {
-            "cavity_ascii": 882,
-            "cavity_binary": 882,
-            "cavity_ascii_parallel": 242,
-            "cavity_binary_parallel": 242
+            "of_cavity_ascii": 882,
+            "of_cavity_binary": 882,
+            "of_cavity_ascii_parallel": 242,
+            "of_cavity_binary_parallel": 242
         }
         self.n_faces = {
-            "cavity_ascii": 1640,
-            "cavity_binary": 1640,
-            "cavity_ascii_parallel": 420,
-            "cavity_binary_parallel": 420
+            "of_cavity_ascii": 1640,
+            "of_cavity_binary": 1640,
+            "of_cavity_ascii_parallel": 420,
+            "of_cavity_binary_parallel": 420
         }
         self.first_faces = {
-            "cavity_ascii": pt.tensor([1, 22, 463, 442], dtype=pt.int32),
-            "cavity_binary": pt.tensor([1, 22, 463, 442], dtype=pt.int32),
-            "cavity_ascii_parallel": pt.tensor([1, 12, 133, 122], dtype=pt.int32),
-            "cavity_binary_parallel": pt.tensor([1, 12, 133, 122], dtype=pt.int32)
+            "of_cavity_ascii": pt.tensor([1, 22, 463, 442], dtype=pt.int32),
+            "of_cavity_binary": pt.tensor([1, 22, 463, 442], dtype=pt.int32),
+            "of_cavity_ascii_parallel": pt.tensor([1, 12, 133, 122], dtype=pt.int32),
+            "of_cavity_binary_parallel": pt.tensor([1, 12, 133, 122], dtype=pt.int32)
         }
         self.n_neighbors = {
-            "cavity_ascii": 760,
-            "cavity_binary": 760,
-            "cavity_ascii_parallel": 180,
-            "cavity_binary_parallel": 180
+            "of_cavity_ascii": 760,
+            "of_cavity_binary": 760,
+            "of_cavity_ascii_parallel": 180,
+            "of_cavity_binary_parallel": 180
         }
         self.first_n_owners = {
-            "cavity_ascii": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
-            "cavity_binary": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
-            "cavity_ascii_parallel": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
-            "cavity_binary_parallel": pt.tensor([0, 0, 1, 1], dtype=pt.int32)
+            "of_cavity_ascii": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
+            "of_cavity_binary": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
+            "of_cavity_ascii_parallel": pt.tensor([0, 0, 1, 1], dtype=pt.int32),
+            "of_cavity_binary_parallel": pt.tensor([0, 0, 1, 1], dtype=pt.int32)
         }
         self.first_n_neighbors = {
-            "cavity_ascii": pt.tensor([1, 20, 2, 21], dtype=pt.int32),
-            "cavity_binary": pt.tensor([1, 20, 2, 21], dtype=pt.int32),
-            "cavity_ascii_parallel": pt.tensor([1, 10, 2, 11], dtype=pt.int32),
-            "cavity_binary_parallel": pt.tensor([1, 10, 2, 11], dtype=pt.int32)
+            "of_cavity_ascii": pt.tensor([1, 20, 2, 21], dtype=pt.int32),
+            "of_cavity_binary": pt.tensor([1, 20, 2, 21], dtype=pt.int32),
+            "of_cavity_ascii_parallel": pt.tensor([1, 10, 2, 11], dtype=pt.int32),
+            "of_cavity_binary_parallel": pt.tensor([1, 10, 2, 11], dtype=pt.int32)
         }
         self.n_centers_volumes = {
-            "cavity_ascii": 400,
-            "cavity_binary": 400,
-            "cavity_ascii_parallel": 100,
-            "cavity_binary_parallel": 100
+            "of_cavity_ascii": 400,
+            "of_cavity_binary": 400,
+            "of_cavity_ascii_parallel": 100,
+            "of_cavity_binary_parallel": 100
         }
         self.first_center = pt.tensor(
             [0.0025, 0.0025, 0.005], dtype=pt.float32)
@@ -223,6 +223,22 @@ class TestFOAMMesh:
             assert faces.size()[0] == n_faces
             assert pt.sum(n_points_faces - 4).item() == 0
             assert pt.sum(faces[0] - first_face).item() == 0
+
+    def test_parse_faces_cylinder(self):
+        n_faces = 55059
+        first_face =  pt.tensor([1, 2, 14027, 14026], dtype=pt.int32)
+        mesh_path = "/constant/polyMesh/"
+        paths = [
+            "test/test_data/run/of_cylinder2D_ascii/",
+            "test/test_data/run/of_cylinder2D_binary/"
+        ]
+        for path in paths:
+            case = FOAMCase(path)
+            mesh = FOAMMesh(case)
+            n_points_faces, faces = mesh._parse_faces(case._path + mesh_path)
+            assert faces.size()[0] == n_faces
+            assert pt.sum(n_points_faces[:10, 0] - 4).item() == 0
+            assert pt.sum(faces[0, :n_points_faces[0, 0]] - first_face).item() == 0
 
     def test_parse_owners_and_neighbors(self, get_test_data):
         for key in get_test_data.paths.keys():

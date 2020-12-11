@@ -10,10 +10,10 @@ class HDF5TestData:
     def __init__(self):
         self.test_path = "test/test_data/run/"
         self.test_cases = [
-            "cavity_ascii",
-            "cavity_binary",
-            "cavity_ascii_parallel",
-            "cavity_binary_parallel"
+            "of_cavity_ascii",
+            "of_cavity_binary",
+            "of_cavity_ascii_parallel",
+            "of_cavity_binary_parallel"
         ]
         self.const_group = sorted(["vertices", "connectivity", "centers", "volumes"])
         self.var_group = ["0.1", "0.2", "0.3", "0.4", "0.5"]
