@@ -11,7 +11,7 @@ from .dataloader import Dataloader
 from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
 from .xdmf import XDMFWriter
 from .mpi_tools import main_only, main_bcast, job_conditional, log_message
-from os.path import exists, isfile
+from os.path import exists
 from os import remove
 from h5py import File
 from mpi4py import MPI
