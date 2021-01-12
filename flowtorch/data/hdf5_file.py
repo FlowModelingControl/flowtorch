@@ -9,7 +9,6 @@ internal flowTorch data format.
 
 from .dataloader import Dataloader
 from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
-from .xdmf import XDMFWriter
 from .mpi_tools import main_only, main_bcast, job_conditional, log_message
 from os.path import exists
 from os import remove
@@ -24,6 +23,17 @@ VERTICES_DS = "vertices"
 CONNECTIVITY_DS = "connectivity"
 CENTERS_DS = "centers"
 VOLUMES_DS = "volumes"
+XDMF_HEADER = """<source lang="xml" line="1">
+    <Domain>
+        <Grid Name="flowTorch" GridType="Collection" CollectionType="Temporal">
+"""
+XDMF_FOOTER = """
+        </Grid>
+    </Domain>
+</source> 
+"""
+TOPOLOGY = "topology"
+GEOMETRY = "geometry"
 
 dtype_conversion = {
     pt.float32: "f4",
@@ -34,6 +44,25 @@ dtype_conversion = {
     "float64": "f8",
     "int32": "i4",
     "int64": "i8"
+}
+
+xdmf_attributes = {
+    1: "Scalar",
+    2: "Vector",
+    3: "Vector",
+    6: "Tensor6",
+    9: "Tensor"
+}
+
+xdmf_dtype_conversion = {
+    "f4": ("Float", 4),
+    "f8": ("Float", 8),
+    "i4": ("Int", 4),
+    "i8": ("Int", 8),
+    "float32": ("Float", 4),
+    "float64": ("Float", 8),
+    "int32": ("Int", 4),
+    "int64": ("Int", 8)
 }
 
 
@@ -141,8 +170,10 @@ class HDF5Writer(object):
                     str(dtype), name)
             )
 
+    @main_only
     def write_xdmf(self):
-        pass
+        writer = XDMFWriter(self._file_path, self._file)
+        writer.create_xdmf("flowtorch.xdmf")
 
 
 class FOAM2HDF5(object):
@@ -179,6 +210,7 @@ Workaround:
             log_message("Converting fields.")
             self._convert_fields(writer, skip_zero)
             log_message("Conversion finished.")
+            writer.write_xdmf()
 
     @main_only
     def _remove_file_if_present(self, file_path):
@@ -195,13 +227,13 @@ Workaround:
         mesh_path = self._loader._case._path + "/" + POLYMESH_PATH
         n_cells, n_points, n_top = self._gather_mesh_information(mesh_path)
         data = self._get_vertices(mesh_path, job=0)
-        writer.write(VERTICES_DS, (n_points, 3), data)
+        writer.write(VERTICES_DS, (n_points, 3), data, None, self._dtype)
         data = self._get_topology(job=0)
-        writer.write(CONNECTIVITY_DS, (n_top,), data)
+        writer.write(CONNECTIVITY_DS, (n_top,), data, None, pt.int32)
         data = self._get_cell_centers(job=1)
-        writer.write(CENTERS_DS, (n_cells, 3), data)
+        writer.write(CENTERS_DS, (n_cells, 3), data, None, self._dtype)
         data = self._get_cell_volumes(job=1)
-        writer.write(VOLUMES_DS, (n_cells,), data)
+        writer.write(VOLUMES_DS, (n_cells,), data, None, self._dtype)
 
     @main_bcast
     def _gather_mesh_information(self, mesh_path):
@@ -313,3 +345,130 @@ Workaround:
     @job_conditional
     def _load_field(self, field, time, job=0):
         return self._loader.load_snapshot(field, time)
+
+
+class XDMFWriter(object):
+    def __init__(self, file_path: str, hdf5_file: File):
+        if "/" in file_path:
+            self._path = file_path[:file_path.rfind("/")]
+            self._hdf5_filename = file_path[file_path.rfind("/") + 1:]
+        else:
+            self._path = "."
+            self._hdf5_filename = file_path
+        self._file = hdf5_file
+        self._n_cells = self._get_n_cells()
+
+    @classmethod
+    def from_filepath(cls, file_path: str):
+        return cls(
+            file_path,
+            File(file_path, mode="a", driver="mpio", comm=MPI.COMM_WORLD)
+        )
+
+    def _get_n_cells(self) -> int:
+        n_cells = 0
+        location = "/{:s}/{:s}".format(CONST_GROUP, VOLUMES_DS)
+        if location in self._file:
+            n_cells = self._file[location].shape[0]
+        if n_cells == 0:
+            log_message("XDMF warning: could not determine number of cells.")
+        return n_cells
+
+    def _add_grid(self, time: str, offset: str = "") -> str:
+        """
+        """
+        grid = offset + "<Grid Name=\"Grid\" GridType=\"Uniform\">\n"
+        grid += self._add_topology(offset + " "*4)
+        grid += self._add_geometry(offset + " "*4)
+        if time is not None:
+            grid += offset + " "*4 + "<Time Value=\"{:s}\"/>\n".format(time)
+            for key in self._find_attributes(time):
+                grid += self._add_attribute(time, key, offset + " "*4)
+        grid += offset + "</Grid>\n"
+        return grid
+
+    def _find_attributes(self, time: str) -> list[str]:
+        location = "/{:s}/{:s}".format(VAR_GROUP, time)
+        keys = self._file[location].keys()
+        valid_attr = []
+        for key in keys:
+            loc = location + "/{:s}".format(key)
+            first_dim = self._file[loc].shape[0]
+            if first_dim == self._n_cells:
+                valid_attr.append(key)
+        return valid_attr
+
+    def _add_topology(self, offset: str = "") -> str:
+        topology = offset + \
+            "<Topology Name=\"{:s}\" TopologyType=\"Mixed\">\n".format(
+                TOPOLOGY)
+        location = self._hdf5_filename + \
+            ":/{:s}/{:s}".format(CONST_GROUP, CONNECTIVITY_DS)
+        topology += self._add_dataitem(location, offset + " "*4)
+        topology += offset + "</Topology>\n"
+        return topology
+
+    def _add_geometry(self, offset: str = "") -> str:
+        geometry = offset + "<Geometry GeometryType=\"XYZ\">\n"
+        location = self._hdf5_filename + \
+            ":/{:s}/{:s}".format(CONST_GROUP, VERTICES_DS)
+        geometry += self._add_dataitem(location, offset + " "*4)
+        geometry += offset + "</Geometry>\n"
+        return geometry
+
+    def _add_attribute(self, time: str, name: str, offset: str = "") -> str:
+        location = self._hdf5_filename + ":/{:s}/{:s}/{:s}".format(
+            VAR_GROUP, time, name
+        )
+        shape = self._file[location.split(":")[-1]].shape
+        tensor_type = xdmf_attributes[len(shape)]
+        attribute = offset + "<Attribute Name=\"{:s}\" AttributeType=\"{:s}\" Center=\"Cell\">\n".format(
+            name, tensor_type
+        )
+        attribute += self._add_dataitem(location, offset + " "*4)
+        attribute += offset + "</Attribute>\n"
+        return attribute
+
+    def _add_dataitem(self, location: str,  offset: str = "") -> str:
+        path_in_file = location.split(":")[-1]
+        shape = self._file[path_in_file].shape
+        dimensions = " ".join(["{:d}".format(i) for i in shape])
+        dtype, precision = xdmf_dtype_conversion[
+            str(self._file[path_in_file].dtype)
+        ]
+        dataitem = offset + "<DataItem Dimensions=\"{:s}\" NumberType=\"{:s}\" Precision=\"{:d}\" Format=\"HDF\">\n".format(
+            dimensions, dtype, precision
+        )
+        dataitem += offset + " "*4 + "{:s}\n".format(location)
+        dataitem += offset + "</DataItem>\n"
+        return dataitem
+
+    def create_xdmf(self, filename: str = None):
+        """
+
+        :param filename: [description]
+        :type filename: [type]
+        """
+        xdmf_str = XDMF_HEADER
+        times = list(self._file[VAR_GROUP].keys())
+        if len(times) > 0:
+            for time in times:
+                xdmf_str += self._add_grid(time, " "*12)
+        else:
+            xdmf_str += self._add_grid(None, " "*12)
+        xdmf_str = xdmf_str[:-1]  # remove last linebreak
+        xdmf_str += XDMF_FOOTER
+
+        if filename is None:
+            if "." in self._hdf5_filename:
+                filename = self._hdf5_filename[:self._hdf5_filename.rfind(
+                    ".")] + ".xdmf"
+            else:
+                filename = self._hdf5_filename + ".xdmf"
+        log_message(
+            "Writing file {:s} as wrapper for {:s} at location {:s}".format(
+                filename, self._hdf5_filename, self._path
+            )
+        )
+        with open(self._path + "/" + filename, "w") as file:
+            file.write(xdmf_str)
