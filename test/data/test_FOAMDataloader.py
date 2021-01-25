@@ -189,7 +189,7 @@ class TestFOAMCase:
         for key in get_test_data.paths.keys():
             case = FOAMCase(get_test_data.paths[key])
             field_names = get_test_data.field_names[key]
-            assert field_names == case._field_names
+            assert sorted(field_names) == sorted(case._field_names)
 
     def test_check_files(self, get_test_data):
         for key in get_test_data.paths.keys():

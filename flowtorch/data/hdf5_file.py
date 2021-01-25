@@ -10,6 +10,7 @@ internal flowTorch data format.
 from .dataloader import Dataloader
 from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
 from .mpi_tools import main_only, main_bcast, job_conditional, log_message
+from typing import List
 from os.path import exists
 from os import remove
 from h5py import File
@@ -387,7 +388,7 @@ class XDMFWriter(object):
         grid += offset + "</Grid>\n"
         return grid
 
-    def _find_attributes(self, time: str) -> list[str]:
+    def _find_attributes(self, time: str) -> List[str]:
         location = "/{:s}/{:s}".format(VAR_GROUP, time)
         keys = self._file[location].keys()
         valid_attr = []
