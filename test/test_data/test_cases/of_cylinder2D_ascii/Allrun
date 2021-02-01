@@ -15,9 +15,7 @@ runApplication extrudeMesh
 cp -r 0.org 0
 runApplication setExprBoundaryFields
 
-# decompose and run case
-runApplication decomposePar
-runParallel renumberMesh -overwrite
-runParallel $(getApplication)
+# run simulation
+runApplication $(getApplication)
 
 #------------------------------------------------------------------------------

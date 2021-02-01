@@ -1,0 +1,238 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v1912                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      snappyHexMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+castellatedMesh true;
+snap            true;
+addLayers       true;
+
+geometry
+{
+    cylinder
+    {
+        type    searchableCylinder;
+        point1  (0.2 0.2 -0.12);
+        point2  (0.2 0.2 0.12);
+        radius  0.05;
+    }
+
+    refBox
+    {
+        type searchableBox;
+        min (  -1 -1 -1);
+        max ( 0.6  1  1);
+    }
+}
+
+
+castellatedMeshControls
+{
+    maxLocalCells       100000;
+    maxGlobalCells      100000000;
+    minRefinementCells  10;
+    maxLoadUnbalance    0.10;
+    nCellsBetweenLevels 3;
+    resolveFeatureAngle 60;//30;
+    allowFreeStandingZoneFaces true;
+    features
+    ();
+    refinementSurfaces
+    {
+        cylinder
+        {
+            level (1 1);
+            patchInfo
+            {
+                type        patch;
+            }
+        }
+    };
+    refinementRegions
+    {
+        refBox
+        {
+            mode        inside;
+            levels      ((1 1));
+        }
+    };
+    locationInMesh (1.02 0.15 0.000000001);
+}
+
+
+snapControls
+{
+    nSmoothPatch    3;
+    tolerance       2.0;
+    nSolveIter      50;
+    nRelaxIter      3;
+}
+
+
+addLayersControls
+{
+    // Are the thickness parameters below relative to the undistorted
+    // size of the refined cell outside layer (true) or absolute sizes (false).
+    relativeSizes true;
+
+    // Per final patch (so not geometry!) the layer information
+    layers
+    {
+        cylinder
+        {
+            nSurfaceLayers 8;
+        }
+    }
+
+    // Expansion factor for layer mesh
+    expansionRatio 1.1;
+
+    // Wanted thickness of final added cell layer. If multiple layers
+    // is the thickness of the layer furthest away from the wall.
+    // Relative to undistorted size of cell outside layer.
+    // See relativeSizes parameter.
+    finalLayerThickness 0.9;
+
+    // Minimum thickness of cell layer. If for any reason layer
+    // cannot be above minThickness do not add layer.
+    // Relative to undistorted size of cell outside layer.
+    // See relativeSizes parameter.
+    minThickness 0.0005;
+
+    // If points get not extruded do nGrow layers of connected faces that are
+    // also not grown. This helps convergence of the layer addition process
+    // close to features.
+    // Note: changed(corrected) w.r.t 17x! (didn't do anything in 17x)
+    nGrow 0;
+
+
+// Advanced settings
+
+    // When not to extrude surface. 0 is flat surface, 90 is when two faces
+    // are perpendicular
+    featureAngle 180;
+
+    // Maximum number of snapping relaxation iterations. Should stop
+    // before upon reaching a correct mesh.
+    nRelaxIter 5;
+
+    // Stop layer growth on highly warped cells
+    maxFaceThicknessRatio 0.5;
+
+    // Smooth layer thickness over surface patches
+    nSmoothThickness 10;
+ //   nSmoothSurfaceNormals 1;
+ //   nSmoothNormals 10;
+ //   nSmoothThickness 10;
+ //   maxFaceThicknessRatio 0.5;
+ //   maxThicknessToMedialRatio 0.3;
+ //   minMedianAxisAngle 90;
+    //- Use displacementMotionSolver to shrink mesh
+    meshShrinker displacementMotionSolver;
+
+    //- Use laplacian for shrinking
+    solver displacementLaplacian;
+
+    displacementLaplacianCoeffs
+    {
+        diffusivity quadratic inverseDistance (cylinder);
+    }
+
+
+    // Create buffer region for new layer terminations
+    nBufferCellsNoExtrude -1;   //0;
+
+    // Overall max number of layer addition iterations. The mesher will exit
+    // if it reaches this number of iterations; possibly with an illegal
+    // mesh.
+    nLayerIter 50;
+
+}
+
+
+meshQualityControls
+{
+        //- Maximum non-orthogonality allowed. Set to 180 to disable.
+    maxNonOrtho 60; // 65
+
+    //- Max skewness allowed. Set to <0 to disable.
+    maxBoundarySkewness 20; // 20
+    maxInternalSkewness 4; // 5
+
+    //- Max concaveness allowed. Is angle (in degrees) below which concavity
+    //  is allowed. 0 is straight face, <0 would be convex face.
+    //  Set to 180 to disable.
+    maxConcave 80; // 80
+
+    //- Minimum pyramid volume. Is absolute volume of cell pyramid.
+    //  Set to a sensible fraction of the smallest cell volume expected.
+    //  Set to very negative number (e.g. -1E30) to disable.
+    minVol 1.0e-13; // 1e-13
+
+    //- Minimum quality of the tet formed by the face-centre
+    //  and variable base point minimum decomposition triangles and
+    //  the cell centre. Set to very negative number (e.g. -1E30) to
+    //  disable.
+    //     <0 = inside out tet,
+    //      0 = flat tet
+    //      1 = regular tet
+    minTetQuality 1e-15; // 1e-15
+
+    //- Minimum face area. Set to <0 to disable.
+    minArea -1;
+
+    //- Minimum face twist. Set to <-1 to disable. dot product of face normal
+    //and face centre triangles normal
+    minTwist 0.02; // 0.02
+
+    //- Minimum normalised cell determinant. This is the determinant of all
+    //  the areas of internal faces. It is a measure of how much of the
+    //  outside area of the cell is to other cells. The idea is that if all
+    //  outside faces of the cell are 'floating' (zeroGradient) the
+    //  'fixedness' of the cell is determined by the area of the internal faces.
+    //  1 = hex, <= 0 = folded or flattened illegal cell
+    minDeterminant 0.001; // 0.001
+
+    //- Relative position of face in relation to cell centres (0.5 for orthogonal
+    //  mesh) (0 -> 0.5)
+    minFaceWeight 0.05; // 0.05
+
+    //- Volume ratio of neighbouring cells (0 -> 1)
+    minVolRatio 0.01; // 0.01
+
+    //- Per triangle normal compared to average normal. Like face twist
+    //  but now per (face-centre decomposition) triangle. Must be >0 for Fluent
+    //  compatibility
+    minTriangleTwist -1; // -1
+
+
+    //- If >0 : preserve cells with all points on the surface if the
+    //  resulting volume after snapping (by approximation) is larger than
+    //  minVolCollapseRatio times old volume (i.e. not collapsed to flat cell).
+    //  If <0 : delete always.
+    // minVolCollapseRatio 0.1; // uncommented
+
+    // Advanced
+
+    //- Number of error distribution iterations
+    nSmoothScale 4;
+    //- Amount to scale back displacement at error points
+    errorReduction 0.75;
+}
+
+debug 0;
+mergeTolerance 1e-6;
+
+
+// ************************************************************************* //

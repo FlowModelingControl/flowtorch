@@ -60,6 +60,9 @@ class FOAMDataloader(Dataloader):
 
     def _parse_data(self, data):
         field_type = self._field_type(data[:MAX_LINE_HEADER])
+        if not field_type in FIELD_TYPE_DIMENSION.keys():
+            sys.exit(
+                "Error: field type {:s} not supported.".format(field_type))
         try:
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
                 field_data = self._unpack_internalfield_binary(
@@ -139,7 +142,6 @@ class FOAMDataloader(Dataloader):
                     field_data.append(self._parse_data(file.readlines()))
             except Exception as e:
                 print("Error: could not read file {:s}".format(file_path))
-                print(e)
         joint_data = pt.cat(field_data)
         return joint_data[start_at:min(batch_size, joint_data.size()[0])]
 
@@ -300,7 +302,7 @@ class FOAMCase(object):
             For distributed cases, only *processor0* is evaluated. The fields
             for all other processors are assumed to be the same.
 
-        :return: dictionary with write times as keys and the field names
+        :return: dictionary with write times as keys and a list of field names
             for each time as values
         :rtype: dict
 
@@ -399,6 +401,9 @@ class FOAMMesh(object):
     """
 
     def __init__(self, case: FOAMCase, dtype: str = pt.float32):
+        if not isinstance(case, FOAMCase):
+            sys.exit("Error: case must be of type FOAMCase, not {:s}"
+                     .format(type(case).__name__))
         self._case = case
         self._dtype = dtype
         self._itype = pt.int32
@@ -429,13 +434,15 @@ class FOAMMesh(object):
         """
         n_cells = 0
         with open(mesh_path + "owner", "rb") as file:
-            header = file.readlines()[:MAX_LINE_HEADER]
-            for line in header:
+            found = False
+            while not found:
+                line = file.readline()
                 if b"note" in line:
                     tokens = line.split()
                     for token in tokens:
                         if b"nCells" in token:
                             n_cells = int(token.split(b":")[1])
+                            found = True
         return n_cells
 
     def _parse_points(self, mesh_path):
@@ -464,7 +471,7 @@ class FOAMMesh(object):
         """Parse cell faces stored in in *constant/polyMesh/faces*.
         """
         def zero_pad(tensor, new_size):
-            """Increase size of second tensor dimesion.
+            """Increase size of second tensor dimension.
             """
             diff = new_size - tensor.size()[1]
             pad = pt.zeros((tensor.size()[0], diff), dtype=self._itype)
@@ -482,7 +489,16 @@ class FOAMMesh(object):
                     "{}i".format(length),
                     buffer[SIZE_OF_CHAR:SIZE_OF_CHAR + SIZE_OF_INT*length]
                 )
-                offset = SIZE_OF_CHAR + 2 * SIZE_OF_INT
+                polyMesh = False
+                for i in range(2, len(idx)):
+                    equal = (idx[i] - idx[i-1] - idx[1] + idx[0]) == 0
+                    if not equal:
+                        polyMesh = True
+                        break
+                if polyMesh:
+                    offset = 3 * SIZE_OF_CHAR + 2 * SIZE_OF_INT
+                else:
+                    offset = SIZE_OF_CHAR + 2 * SIZE_OF_INT
                 values = struct.unpack(
                     "{}i".format(idx[-1]),
                     buffer[offset+SIZE_OF_INT*length:offset +

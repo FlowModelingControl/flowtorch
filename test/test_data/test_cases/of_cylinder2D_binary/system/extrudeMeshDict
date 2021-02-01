@@ -10,19 +10,22 @@ FoamFile
     version     2.0;
     format      ascii;
     class       dictionary;
-    location    "system";
-    object      decomposeParDict;
+    object      extrudeMeshDict;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-numberOfSubdomains  2;
+constructFrom patch;
+sourceCase "$FOAM_CASE";
 
-method              hierarchical;
+sourcePatches (front);
+exposedPatchName back;
 
-coeffs
-{
-    n               (2 1 1);
-}
+extrudeModel  linearDirection;
+direction     (0 0 1);
+thickness     0.01;
 
+flipNormals false;
+mergeFaces false;
 
-// ************************************************************************* //
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+

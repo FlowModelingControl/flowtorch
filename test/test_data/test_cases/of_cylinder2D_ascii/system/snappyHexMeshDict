@@ -28,12 +28,12 @@ geometry
         radius  0.05;
     }
 
-    /*refBox
+    refBox
     {
         type searchableBox;
-        min (-0.03 -0.015 -0.12);
-        max ( 1.27  0.425  0.12);
-    }*/
+        min (  -1 -1 -1);
+        max ( 0.6  1  1);
+    }
 }
 
 
@@ -52,7 +52,7 @@ castellatedMeshControls
     {
         cylinder
         {
-            level (2 2);
+            level (1 1);
             patchInfo
             {
                 type        patch;
@@ -61,13 +61,13 @@ castellatedMeshControls
     };
     refinementRegions
     {
-        /*refBox
+        refBox
         {
             mode        inside;
-            levels      ((2 2));
-        }*/
+            levels      ((1 1));
+        }
     };
-    locationInMesh (1.02 0.15 0.008);
+    locationInMesh (1.02 0.15 0.000000001);
 }
 
 
@@ -75,8 +75,8 @@ snapControls
 {
     nSmoothPatch    3;
     tolerance       2.0;
-    nSolveIter      100;
-    nRelaxIter      5;
+    nSolveIter      50;
+    nRelaxIter      3;
 }
 
 
@@ -91,7 +91,7 @@ addLayersControls
     {
         cylinder
         {
-            nSurfaceLayers 6;
+            nSurfaceLayers 8;
         }
     }
 

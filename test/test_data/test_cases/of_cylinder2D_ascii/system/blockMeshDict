@@ -14,23 +14,29 @@ FoamFile
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
+lengthX 2.2;
+lengthY 0.41;
+blocksX 200;
+blocksY #calc "(int) ($lengthY / $lengthX * $blocksX)";
+thickness #calc "$lengthX / $blocksX";
+
 scale   1;
 
 vertices
 (
     (0 0 0)
-    (2.2 0 0)
-    (2.2 0.41 0)
-    (0 0.41 0)
-    (0 0 0.01)
-    (2.2 0 0.01)
-    (2.2 0.41 0.01)
-    (0 0.41 0.01)
+    ($lengthX 0 0)
+    ($lengthX $lengthY 0)
+    (0 $lengthY 0)
+    (0 0 $thickness)
+    ($lengthX 0 $thickness)
+    ($lengthX 0.41 $thickness)
+    (0 $lengthY $thickness)
 );
 
 blocks
 (
-    hex (0 1 2 3 4 5 6 7) (440 82 1) simpleGrading (1 1 1)
+    hex (0 1 2 3 4 5 6 7) ($blocksX $blocksY 1) simpleGrading (1 1 1)
 );
 
 edges

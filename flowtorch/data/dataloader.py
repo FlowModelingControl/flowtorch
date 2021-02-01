@@ -8,6 +8,8 @@ formats.
 from abc import ABC, abstractmethod
 from torch import Tensor
 
+BIG_INT = 1e15
+
 
 class Dataloader(ABC):
     r"""Abstract base class to define a common interface for dataloaders.
@@ -61,7 +63,7 @@ class Dataloader(ABC):
         pass
 
     @abstractmethod
-    def get_vertices(self) -> Tensor:
+    def get_vertices(self, start_at: int = 0, batch_size: int = BIG_INT) -> Tensor:
         """Get the vertices at which field values are defined.
 
         :return: coordinates of vertices
@@ -71,7 +73,7 @@ class Dataloader(ABC):
         pass
 
     @abstractmethod
-    def get_weights(self) -> Tensor:
+    def get_weights(self, start_at: int = 0, batch_size: int = BIG_INT) -> Tensor:
         """Get the weights for field values.
 
         In a standard finite volume method, the weights are
