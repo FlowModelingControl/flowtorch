@@ -9,10 +9,10 @@ flowtorch.data.dataloader
    :undoc-members:
    :show-inheritance:
 
-flowtorch.data.cgns\_dataloader
--------------------------------
+flowtorch.data.flexi\_dataloader
+--------------------------------
 
-.. automodule:: flowtorch.data.cgns_dataloader
+.. automodule:: flowtorch.data.flexi_dataloader
    :members:
    :undoc-members:
    :show-inheritance:
@@ -25,13 +25,6 @@ flowtorch.data.foam\_dataloader
    :undoc-members:
    :show-inheritance:
 
-flowtorch.data.function\_dataloader
------------------------------------
-
-.. automodule:: flowtorch.data.function_dataloader
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 flowtorch.data.hdf5\_file
 -------------------------
@@ -42,10 +35,28 @@ flowtorch.data.hdf5\_file
    :show-inheritance:
 
 
-flowtorch.data.xdmf
--------------------
+flowtorch.data.maia\_dataloader
+-------------------------------
 
-.. automodule:: flowtorch.data.xdmf
+.. automodule:: flowtorch.data.maia_dataloader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+flowtorch.data.psp\_dataloader
+------------------------------
+
+.. automodule:: flowtorch.data.psp_dataloader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+flowtorch.data.tau\_dataloader
+------------------------------
+
+.. automodule:: flowtorch.data.tau_dataloader
    :members:
    :undoc-members:
    :show-inheritance:
