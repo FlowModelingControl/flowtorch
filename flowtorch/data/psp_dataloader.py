@@ -13,13 +13,15 @@ from os.path import exists
 from h5py import File
 from mpi4py import MPI
 from math import ceil
+from typing import List
 import torch as pt
+import numpy as np
 import sys
 
-BIG_INT = 1e15
-IGNORE_KEYS = ["Info"]
-DEFAULT_FIELD_NAME = "cp"
-DEFAULT_DATA_NAME = "Images"
+
+COORDINATE_KEYS = ["CoordinatesX", "CoordinatesY", "CoordinatesZ"]
+WEIGHT_KEY = "Mask"
+IGNORE_KEYS = ["Info", "Parameter", "ParameterDescription", "TimeValues", WEIGHT_KEY] + COORDINATE_KEYS
 
 
 class PSPDataloader(Dataloader):
@@ -35,33 +37,42 @@ class PSPDataloader(Dataloader):
                               driver="mpio", comm=MPI.COMM_WORLD)
         else:
             sys.exit("Error: could not find file {:s}".format(self._path))
-        self._dataset_names = self._get_dataset_names()
-        self._dataset = self._dataset_names[0]
+        self._dataset_names = self.get_dataset_names()
+        if len(self._dataset_names) > 0:
+            self._dataset = self.get_dataset_names()[0]
+        else:
+            print(
+                "Warning: could not find dataset in file {:s}".format(self._file))
+            self._dataset = None
         self._attributes = self._get_attributes()
         self._write_times = self._get_write_times()
 
-    @main_bcast
-    def _get_dataset_names(self) -> list:
-        all_keys = self._file.keys()
-        return [key for key in all_keys if not key in IGNORE_KEYS]
+    
 
     @main_bcast
     def _get_attributes(self) -> dict:
+        # TODO: read frequency from file once format is finalized
         attributes = {
-            "Frequency": 1000.0
+            "Frequency": 2000.0
         }
         return attributes
 
     @main_bcast
     def _get_write_times(self):
         freq = self._attributes["Frequency"]
-        data_path = "/".join([self._dataset, DEFAULT_DATA_NAME])
+        fields = self.field_names()
+        data_path = "/".join([self._dataset, fields[0]])
         n_snapshot = self._file[data_path].shape[-1]
         return ["{:2.6f}".format(float(i)/freq) for i in range(n_snapshot)]
 
     def _time_to_index(self, time):
         freq = self._attributes["Frequency"]
-        return int(ceil(float(time) * freq))
+        return int(round(float(time) * freq, 0))
+
+    @main_bcast
+    def get_dataset_names(self) -> list:
+        all_keys = self._file.keys()
+        return [key for key in all_keys if not key in IGNORE_KEYS]
 
     def select_dataset(self, name: str):
         if name in self._dataset_names:
@@ -78,34 +89,32 @@ class PSPDataloader(Dataloader):
         return self._write_times
 
     def field_names(self):
-        field_list = [DEFAULT_FIELD_NAME]
-        return dict(
-            zip(self._write_times, [field_list]*len(self._write_times))
-        )
+        set_keys = self._file[self._dataset].keys()
+        return [key for key in set_keys if key not in IGNORE_KEYS]
 
-    def load_snapshot(self, field_name: str, time: str, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
-        data_path = "/".join([self._dataset, DEFAULT_DATA_NAME])
+    def load_snapshot(self, field_name: str, time: List[str]) -> pt.Tensor:
+        data_path = "/".join([self._dataset, field_name])
+        indices = np.array([self._time_to_index(t) for t in time])
         if data_path in self._file:
             field = pt.tensor(
-                self._file[data_path][:, :, self._time_to_index(time)],
+                self._file[data_path][:, :, indices],
                 dtype=self._dtype
-            ).flatten()
+            )
         else:
             sys.exit("Dataset {:s} not found.".format(data_path))
-        return field[start_at:min(batch_size, field.size()[0])]
+        return field
 
-    def get_vertices(self, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
+    def get_vertices(self) -> pt.Tensor:
         data_path = "/".join([self._dataset, "CoordinatesX"])
         shape = self._file[data_path].shape
-        n_vertices = shape[0] * shape[1]
-        vertices = pt.zeros((n_vertices, 3), dtype=self._dtype)
-        for i, axis in enumerate(["CoordinatesX", "CoordinatesY", "CoordinatesZ"]):
-            data_path = "/".join([self._dataset, "CoordinatesX"])
-            vertices[:, i] = pt.tensor(
-                self._file[data_path][:, :], dtype=self._dtype).flatten()
-        return vertices[start_at:min(batch_size, vertices.size()[0]), :]
+        vertices = pt.zeros((*shape, 3), dtype=self._dtype)
+        for i, axis in enumerate(COORDINATE_KEYS):
+            data_path = "/".join([self._dataset, axis])
+            vertices[:, :, i] = pt.tensor(
+                self._file[data_path][:, :], dtype=self._dtype)
+        return vertices
 
-    def get_weights(self, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
-        data_path = "/".join([self._dataset, "CoordinatesX"])
-        shape = self._file[data_path].shape
-        return pt.ones(shape[0]*shape[1], dtype=self._dtype)
+    def get_weights(self) -> pt.Tensor:
+        data_path = "/".join([self._dataset, "Mask/"])
+        weights = pt.tensor(self._file[data_path][:], dtype=self._dtype)
+        return weights
