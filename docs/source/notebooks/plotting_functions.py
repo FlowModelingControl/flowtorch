@@ -7,7 +7,6 @@ import matplotlib as mpl
 mpl.rcParams['figure.dpi'] = 120
 
 
-
 pt.pi = pt.acos(pt.zeros(1)).item()*2  #PyTorch has no built in Pi function
 
 t = pt.linspace(0, 6*pt.pi, 80)
@@ -15,15 +14,14 @@ Tm, Xm = pt.meshgrid(t, pt.linspace(-10, 10, 100))
 dt = Tm[1,0]-Tm[0,0]
 
 
-
 def plot_data(func, n):
     fig, ax = plt.subplots(1, 1, figsize=(8, 3))
     for i in range(12):
         ax.plot(Xm[0,:], pt.real(func[:, i]), c='C{}'.format(n-1), alpha=1-(i/11), label='$t_{{{temp}}}$'.format(temp=i))
     ax.set_xlabel(r"$x$")
-    ax.set_ylabel('$f_{}$'.format(n))
+    ax.set_ylabel('$Re(f_{})$'.format(n))
     if n==4:
-        ax.set_ylabel('f1+f2+f3')
+        ax.set_ylabel('Re(f1+f2+f3)')
     if n==5:
         ax.set_ylabel('Reconstucted data $\hat{X}$')
     ax.set_xlim(pt.min(Xm[0,:]), pt.max(Xm[0,:]))
