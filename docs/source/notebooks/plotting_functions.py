@@ -25,7 +25,6 @@ def plot_data(func, n):
     if n==5:
         ax.set_ylabel('Reconstucted data $\hat{X}$')
     ax.set_xlim(pt.min(Xm[0,:]), pt.max(Xm[0,:]))
-    fig.legend() #REMOVE LEGEND??
     
 def plot_singular_values(s_temp):
     fig, ax = plt.subplots(1, 1, figsize=(8, 4.5))
