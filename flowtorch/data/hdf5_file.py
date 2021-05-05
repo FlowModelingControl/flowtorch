@@ -11,11 +11,12 @@ from .dataloader import Dataloader
 from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
 from .mpi_tools import main_only, main_bcast, job_conditional, log_message
 from typing import List
-from os.path import exists
+from os.path import isfile, exists
 from os import remove
 from h5py import File
 from mpi4py import MPI
 import torch as pt
+import sys
 
 
 CONST_GROUP = "constant"
@@ -71,7 +72,7 @@ class HDF5Dataloader(Dataloader):
     """
     """
 
-    def __init__(self, file: str, dtype: str = pt.float32):
+    def __init__(self, file_path: str, dtype: str = pt.float32):
         """
 
         :param path: [description]
@@ -81,22 +82,35 @@ class HDF5Dataloader(Dataloader):
         :param dtype: [description], defaults to pt.float32
         :type dtype: [type], optional
         """
-        pass
+        self._file_path = file_path
+        if not isfile(self._file_path):
+            sys.exit("Error: could not find file {:s}".format(self._file_path))
+        self._file = File(self._file_path, mode="a", driver="mpio", comm=MPI.COMM_WORLD)
 
     def write_times(self):
-        pass
+        return list(self._file[VAR_GROUP].keys())
 
     def field_names(self):
-        pass
+        times = self.write_times()
+        field_names = dict.fromkeys(times, [])
+        for time in times:
+            field_names[time] = list(self._file[f"{VAR_GROUP}/{time}"].keys())
+        return field_names
 
-    def load_snapshot(self):
-        pass
+    def load_snapshot(self, field_name: str, time: str) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{VAR_GROUP}/{time}/{field_name}"][:]
+        )
 
-    def get_vertices(self):
-        pass
+    def get_vertices(self) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{CONST_GROUP}/{CENTERS_DS}"][:]
+        )
 
-    def get_weights(self):
-        pass
+    def get_weights(self) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{CONST_GROUP}/{VOLUMES_DS}"][:]
+        )
 
 
 class HDF5Writer(object):
@@ -119,10 +133,6 @@ class HDF5Writer(object):
         self._file_path = file
         self._file = File(file, mode="a", driver="mpio", comm=MPI.COMM_WORLD)
 
-    def __del__(self):
-        """Destructor to ensure that HDF5 file is closed.
-        """
-        self._file.close()
 
     def write(self,
               name: str,
@@ -210,7 +220,7 @@ Workaround:
             self._convert_mesh(writer)
             log_message("Converting fields.")
             self._convert_fields(writer, skip_zero)
-            log_message("Conversion finished.")
+            log_message("Conversion finished. Writing XDMF file.")
             writer.write_xdmf()
 
     @main_only
@@ -304,6 +314,7 @@ Workaround:
         """
         field_info = self._gather_field_information(skip_zero)
         for job, info in enumerate(field_info):
+            print(f"Converting field {info[0]} at time {info[1]}, dimension {info[2]}")
             data = self._load_field(*info[:2], job=job)
             writer.write(info[0], info[2], data, info[1])
 
