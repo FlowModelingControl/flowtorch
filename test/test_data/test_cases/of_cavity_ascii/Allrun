@@ -5,5 +5,7 @@ cd "${0%/*}" || exit                                # Run from this directory
 
 runApplication blockMesh
 runApplication icoFoam
+runApplication -s "volumnes" postProcess -func "writeCellVolumes" -constant -time none
+runApplication -s "centres" postProcess -func "writeCellCentres" -constant -time none
 
 #------------------------------------------------------------------------------
