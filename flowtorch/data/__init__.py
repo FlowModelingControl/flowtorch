@@ -4,3 +4,4 @@ from .flexi_dataloader import FLEXIDataloader
 from .psp_dataloader import PSPDataloader
 from .tau_dataloader import TAUDataloader
 from .maia_dataloader import MAIADataloader
+from .selection_tools import mask_box
