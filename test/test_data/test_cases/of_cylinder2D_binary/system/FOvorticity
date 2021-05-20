@@ -1,0 +1,19 @@
+vorticity1
+{
+    // Mandatory entries
+    type            vorticity;
+    libs            (fieldFunctionObjects);
+
+    // Optional (inherited) entries
+    field           U;
+    result          vorticity;
+    region          region0;
+    enabled         true;
+    log             false;
+    timeStart       0.0;
+    timeEnd         1000;
+    executeControl  writeTime;
+    executeInterval 1;
+    writeControl    writeTime;
+    writeInterval   1;
+}

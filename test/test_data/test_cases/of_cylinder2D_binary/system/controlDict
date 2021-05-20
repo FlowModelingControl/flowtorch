@@ -43,4 +43,8 @@ timePrecision   8;
 
 runTimeModifiable false;
 
+functions
+{
+	#include "FOvorticity"
+}
 // ************************************************************************* //
