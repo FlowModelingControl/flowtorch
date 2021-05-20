@@ -8,3 +8,7 @@ test/test_data/run
 external_data
 private_data
 literature
+build
+dist
+flowTorch.egg-info
+
