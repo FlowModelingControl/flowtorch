@@ -1,8 +1,6 @@
 """Classes and functions wrapping around *torch.linalg.svd*.
 """
 
-# standard library packages
-import bisect
 # third party packages
 import torch as pt
 # flowtorch packages
@@ -30,11 +28,15 @@ class SVD(object):
     def _omega(self, beta: float):
         return 0.56*beta**3 - 0.95*beta**2 + 1.82*beta + 1.43
 
-    def _optimal_rank(self, s: pt.Tensor):
+    def _optimal_rank(self, s: pt.Tensor) -> int:
         assert len(s.shape) == 1, "Input must be a 1D tensor."
         beta = min(self._rows, self._cols) / max(self._rows, self._cols)
         tau_star = self._omega(beta) * pt.median(s)
-        return bisect.bisect_right(s.tolist(), tau_star.item())
+        closest = pt.argmin((s - tau_star).abs()).item()
+        if s[closest] > tau_star:
+            return closest + 1
+        else:
+            return closest
 
     def required_memory(self) -> int:
         """Compute the memory size in bytes of the truncated SVD.
