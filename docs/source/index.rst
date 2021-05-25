@@ -20,10 +20,9 @@ the Python :term:`API`.
    :caption: Examples
 
    notebooks/linear_algebra_basics
-   notebooks/POD_introduction
+   notebooks/svd_ht
    notebooks/DMD_introduction
-   notebooks/cylinder_flow
-   notebooks/separation_bubble_flow
+   notebooks/svd_cylinder
 
 .. toctree::
    :maxdepth: 1
