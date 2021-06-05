@@ -9,9 +9,9 @@
 
 > unsteady flow and interaction phenomena at high speed stall conditions
 
-with the primary goal to investigate flow conditions that lead to [buffeting](https://en.wikipedia.org/wiki/Aeroelasticity#Buffeting) at airfoils in the transonic flow regime.
+with the primary goal to investigate flow conditions that lead to [buffeting](https://en.wikipedia.org/wiki/Aeroelasticity#Buffeting) at airfoils in the transonic flow regime. The animation below shows the shock buffet on a NACA-0012 airfoil at *Re=10^7*, *Ma=0.75*, and 4 degrees angle of attack. The simulation was conducted in OpenFOAM; follow [this link](https://github.com/AndreWeiner/naca0012_shock_buffet) for more information about the setup.
 
-
+https://user-images.githubusercontent.com/8482575/120886182-f2b78800-c5ec-11eb-9b93-efb9a139c431.mp4
 
 ## Why *flowTorch*?
 
