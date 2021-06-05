@@ -86,7 +86,7 @@ The build the HTML version of the API documentation, navigate to `./docs` and ru
 ```
 make html
 ```
-To perform unit testing, execute `pytest` in the repository's top-level folder. Note that additional test data are requirement for many of the tests. There are scripts located at `test/test_data` to create the test data yourself. Otherwise, fell free to get in touch.
+To perform unit testing, execute `pytest` in the repository's top-level folder. Note that additional test data are requirement for many of the tests. There are scripts located at `test/test_data` to create the test data yourself. Otherwise, feel free to get in touch.
 
 ## Getting help
 
