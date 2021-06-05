@@ -15,34 +15,82 @@ https://user-images.githubusercontent.com/8482575/120886182-f2b78800-c5ec-11eb-9
 
 ## Why *flowTorch*?
 
-The *flowTorch* project was initiated to facilitate the processing and analysis of massive flow datasets having hundreds several **terabytes** in size. Its main applications are closely reflected by the *flowTorch* sub-packages:
+The *flowTorch* project was started with the intention to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. For example, performing a dynamic mode decomposition (DMD) of a transient *OpenFOAM* simulation looks as follows:
+
+```
+import torch as pt
+from flowtorch.data import FOAMDataloader, mask_box
+from flowtorch.analysis.dmd import DMD
+
+loader = FOAMDataloader("run/flow_past_cylinder/")
+
+# select a subset of the available snapshots
+times = loader.write_times()
+window_times = [time for time in times if float(time) >= 4.0]
+
+# load vertices, discard z-coordinate, and create a mask
+vertices = loader.get_vertices()[:, :2]
+mask = mask_box(vertices, lower=[0.1, -1], upper=[0.75, 1])
+
+# assemble the data matrix
+data_matrix = pt.zeros((mask.sum().item(), len(window_times)), dtype=pt.float32)
+for i, time in enumerate(window_times):
+    # load the vorticity vector field, take the z-component [:, 2], and apply the mask
+    data_matrix[:, i] = pt.masked_select(loader.load_snapshot("vorticity", time)[:, 2], mask)
+
+# perform DMD
+dmd = DMD(data_matrix, rank=19)
+# analyse dmd.modes or dmd.eigvals
+# ...
+```
+
+Currently, the following sub-packages are under active development. Note that some of the components are not yet available in the public release because further developments and testing are required:
 
 | package | content |
 | :------ | :-------|
-|flowtorch.data | data loading, domain reduction, and sampling, e.g., using *sparse spatial sampling* (S<sup>3</sup>) |
-| flowtorch.analysis | algorithms for dimensionality reduction, including *proper orthogonal decomposition* (POD), *dynamic mode decomposition* (DMD), and variants thereof |
-| flowtorch.rom | reduced-order modeling using [cluster-based network models (CNM)](https://github.com/fernexda/cnm) |
+|flowtorch.data | data loading, domain reduction (masked selection), and sampling, e.g., using *sparse spatial sampling* (S<sup>3</sup>) |
+| flowtorch.analysis | algorithms for dimensionality reduction, including *proper orthogonal decomposition* (POD), *dynamic mode decomposition* (DMD), autoencoders, and variants thereof |
+| flowtorch.rom | reduced-order modeling using [cluster-based network models (CNM)](https://github.com/fernexda/cnm); to be added soon |
 
-*flowTorch* uses the [PyTorch](https://github.com/pytorch/pytorch) library as a backend for data structures, data types, and linear algebra operations on CPU and GPU. Some features that *flowTorch* focuses on include:
+*flowTorch* uses the [PyTorch](https://github.com/pytorch/pytorch) library as a backend for data structures, data types, and linear algebra operations on CPU and GPU. Some features in which *flowTorch* differs from similar packages include:
 
 - parallel data processing on multiple CPUs and GPUs
 - mixed-precision operations (single/double)
-- user-friendly Python library that integrates easily with popular tools and libraries like *Jupyterlab*, *Matplotlib*, or *Numpy*
-- a rich documentation with plenty of beginner-friendly but also realistic tutorials
-- interfaces to common data formats like [OpenFOAM](https://www.openfoam.com/), [CGNS](https://cgns.github.io/), and [netCDF](https://www.unidata.ucar.edu/software/netcdf/) 
+- user-friendly Python library that integrates easily with popular tools and libraries like *Jupyterlab*, *Matplotlib*, *Pandas*, or *Numpy*
+- a tutorial collection to help you getting started
+- interfaces to common data formats like [OpenFOAM](https://www.openfoam.com/), [CGNS](https://cgns.github.io/) (more are on the way)
 
 ## Getting started
 
-The central source of knowledge is the [flowTorch documentation](link). There you find
+The easiest way to install *flowTorch* is as follows:
+```
+# clone the repository
+git clone git@github.com:AndreWeiner/flowtorch.git
+# build the wheel
+python3 setup.py bdist_wheel
+# install flowTorch with pip
+pip3 install dist/flowTorch-0.1-py3-none-any.whl
+# to uninstall flowTorch, run
+pip3 uninstall flowtorch
+```
 
-- [installation](link) instructions for users
-- instructions for developers
-- [examples](link)
-- [Python API](link)
+The repository contains a collection of examples as part of the documentation. To open the [Jupyter labs](https://jupyter.org/), navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the corresponding datasets are required, which are not included in this repository. Feel free to get in touch if you are interested in the datasets.
+
+## Development
+
+For documentation and testing, the following additional packages are required:
+```
+pip3 install sphinx sphinx_rtd_theme nbsphinx pytest recommonmark
+```
+The build the HTML version of the API documentation, navigate to `./docs` and run:
+```
+make html
+```
+To perform unit testing, execute `pytest` in the repository's top-level folder. Note that additional test data are requirement for many of the tests. There are scripts located at `test/test_data` to create the test data yourself. Otherwise, fell free to get in touch.
 
 ## Getting help
 
-If you encounter any issues using *flowTorch*, please use the repository's [issue tracker](https://github.com/AndreWeiner/flowtorch/issues). Consider the following steps before and when opening a new issue:
+If you encounter any issues using *flowTorch* or if you have any questions regarding current and future development plans, please use the repository's [issue tracker](https://github.com/AndreWeiner/flowtorch/issues). Consider the following steps before and when opening a new issue:
 
 0. Have you searched for similar issues that may have been already reported? The issue tracker has a *filter* function to search for keywords in open issues.
 1. Click on the green *New issue* button in the upper right corner and describe your problem as detailed as possible. The issue should state what **the problem** is, what the **expected behavior** should be, and, maybe, suggest a **solution**. Note that you can also attach files or images to the issue.

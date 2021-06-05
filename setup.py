@@ -39,6 +39,7 @@ setup(
         "matplotlib",
         "mpi4py",
         "numpy",
+        "numpy-stl",
         "pandas",
         "plotly",
         "torch >= 1.8"
