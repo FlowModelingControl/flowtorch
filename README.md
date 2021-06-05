@@ -1,15 +1,17 @@
+![FOR2895Logo](media/for2895_logo.png)
+
 # flowTorch
 
 **flowTorch** - a Python library for analysis and reduced order modeling of fluid flows
 
-*flowTorch* is developed primarily by the [Flow Modeling and Control group](https://www.tu-braunschweig.de/en/ism/research-workgroups/flow-modelling-and-control) led by [Richard Semaan](r.semaan@tu-braunschweig.de). The development is financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.dfg.de/en/funded_projects/current_projects_programmes/list/projectdetails/index.jsp?id=406435057&sort=nr_asc&prg=FOR)
+*flowTorch* is developed primarily by the [Flow Modeling and Control group](https://www.tu-braunschweig.de/en/ism/research-workgroups/flow-modelling-and-control) led by [Richard Semaan](https://www.tu-braunschweig.de/en/ism/research/flow-modelling-and-control/staff/semaan). The development is financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.for2895.uni-stuttgart.de/)
 
 
 > unsteady flow and interaction phenomena at high speed stall conditions
 
 with the primary goal to investigate flow conditions that lead to [buffeting](https://en.wikipedia.org/wiki/Aeroelasticity#Buffeting) at airfoils in the transonic flow regime.
 
-**flowTorch is still under construction. The initial release is planned for January 2021.**
+
 
 ## Why *flowTorch*?
 
