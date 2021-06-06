@@ -10,9 +10,6 @@ the Python :term:`API`.
    :caption: Overview:
 
    overview/introduction
-   overview/installation
-   overview/quick_start
-   overview/developers
    overview/glossary
 
 .. toctree::
@@ -21,8 +18,11 @@ the Python :term:`API`.
 
    notebooks/linear_algebra_basics
    notebooks/svd_ht
-   notebooks/DMD_introduction
+   notebooks/dmd_intro
    notebooks/svd_cylinder
+   notebooks/dmd_cylinder
+   notebooks/dmd_naca0012_surface
+   notebooks/dmd_naca0012_2D_buffet
 
 .. toctree::
    :maxdepth: 1

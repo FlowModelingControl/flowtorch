@@ -82,7 +82,7 @@ For documentation and testing, the following additional packages are required:
 ```
 pip3 install sphinx sphinx_rtd_theme nbsphinx pytest recommonmark
 ```
-The build the HTML version of the API documentation, navigate to `./docs` and run:
+To build the HTML version of the API documentation, navigate to `./docs` and run:
 ```
 make html
 ```

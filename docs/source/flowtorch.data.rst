@@ -34,16 +34,6 @@ flowtorch.data.hdf5\_file
    :undoc-members:
    :show-inheritance:
 
-
-flowtorch.data.maia\_dataloader
--------------------------------
-
-.. automodule:: flowtorch.data.maia_dataloader
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-
 flowtorch.data.psp\_dataloader
 ------------------------------
 
@@ -52,11 +42,26 @@ flowtorch.data.psp\_dataloader
    :undoc-members:
    :show-inheritance:
 
+flowtorch.data.selection\_tools
+-------------------------------
 
-flowtorch.data.tau\_dataloader
-------------------------------
+.. automodule:: flowtorch.data.selection_tools
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-.. automodule:: flowtorch.data.tau_dataloader
+flowtorch.data.mpi\_tools
+-------------------------------
+
+.. automodule:: flowtorch.data.mpi_tools
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+flowtorch.data.utils
+--------------------
+
+.. automodule:: flowtorch.data.utils
    :members:
    :undoc-members:
    :show-inheritance:
