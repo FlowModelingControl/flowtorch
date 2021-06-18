@@ -1,6 +1,7 @@
 """Collection of utilities realted to data and dataloaders."""
 
-
+# standard library packages
+from os.path import exists
 from typing import Tuple
 
 
@@ -21,3 +22,23 @@ def format_byte_size(size: int) -> Tuple[float, str]:
         size /= 1024
         exponent += 1
     return size, exponent_labels[exponent]
+
+
+def check_and_standardize_path(path: str, folder: bool = True):
+    """Check if path exists and remove trailing slash if present.
+
+    :param path: path to folder or file
+    :type path: str
+    :param folder: True if path points to folder; False if path points to file
+    :type folder: bool
+    :return: standardized path to file or folder
+    :rtype: str
+
+    """
+    if exists(path):
+        if folder and path[-1] == "/":
+            return path[:-1]
+        else:
+            return path
+    else:
+        raise ValueError(f"Could not find {path}")
