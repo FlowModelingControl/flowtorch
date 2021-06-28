@@ -51,16 +51,17 @@ class FOAMDataloader(Dataloader):
 
     >>> from flowtorch.data import FOAMDataloader
     >>> loader = FOAMDataloader("./")
-    >>> loader.write_times()
+    >>> loader.write_times
     ['0', '0.1', '0.2', '0.3', '0.4', '0.5']
-    >>> loader.field_names()
-    {'0': ['p', 'U'], '0.1': ['p', 'phi', 'U'], '0.2': ['p', 'phi', 'U'], '0.3': ['p', 'phi', 'U'], '0.4': ['p', 'phi', 'U'], '0.5': ['p', 'phi', 'U']}
-    >>> vertices = loader.get_vertices()
+    >>> loader.field_names
+    {'0': ['p', 'U'], '0.1': ['p', 'phi', 'U'], '0.2': ['p', 'phi', 'U'], '0.3': [
+        'p', 'phi', 'U'], '0.4': ['p', 'phi', 'U'], '0.5': ['p', 'phi', 'U']}
+    >>> vertices = loader.vertices
     >>> vertices[:3]
     tensor([[0.0025, 0.0025, 0.0050],
             [0.0075, 0.0025, 0.0050],
             [0.0125, 0.0025, 0.0050]])
-    >>> loader.get_weights()[:3]  # cell volumes
+    >>> loader.weights[:3]  # cell volumes
     tensor([2.5000e-07, 2.5000e-07, 2.5000e-07])
     >>> p = loader.load_snapshot("p", "0.5")
     >>> p.shape
@@ -142,17 +143,7 @@ class FOAMDataloader(Dataloader):
         else:
             return pt.tensor(values, dtype=self._dtype)
 
-    def write_times(self) -> List[str]:
-        """Returns the output of :func:`FOAMCase._eval_write_times`
-        """
-        return self._case._time_folders
-
-    def field_names(self) -> Dict[str, List[str]]:
-        """Returns the output of :func:`FOAMCase._eval_field_names`
-        """
-        return self._case._field_names
-
-    def load_snapshot(self, field_name: str, time: str, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
+    def load_snapshot(self, field_name: str, time: str) -> pt.Tensor:
         file_paths = []
         if self._case._distributed:
             for proc in range(self._case._processors):
@@ -171,31 +162,51 @@ class FOAMDataloader(Dataloader):
         joint_data = pt.cat(field_data)
         return joint_data[start_at:min(batch_size, joint_data.size()[0])]
 
-    def get_vertices(self, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
-        """Get vertices at which field values are defined.
-
-        In OpenFOAM, all field are defined at the control volume's
-        center. Therefore, get vertices returns the cell center locations.
-
-        :returns: control volume centers
-        :rtype: Tensor
-
+    @property
+    def write_times(self) -> List[str]:
         """
-        centers = self._mesh.get_cell_centers()
-        return centers[start_at:min(batch_size, centers.size()[0])]
+        Access to available snapshot/write times via :func:`FOAMCase._eval_write_times`.
 
-    def get_weights(self, start_at: int = 0, batch_size: int = BIG_INT) -> pt.Tensor:
-        """Get cell volumes.
+        :getter: returns the available write times
+        :type: List[str] 
+        """
+        return self._case._time_folders
 
+    @property
+    def field_names(self) -> Dict[str, List[str]]:
+        """
+        Access to the available field names for all available write times via
+        :func:`FOAMCase._eval_field_names`.
+
+        :getter: returns names of availabe fields
+        :type: Dict[str, List[str]]
+        """
+        return self._case._field_names
+
+    @property
+    def vertices(self) -> pt.Tensor:
+        """
+        In OpenFOAM, field for post-processing are defined at the control volume's
+        center (*vol<Type>Fields*). Therefore, the `vertices` property enables access
+        to cell center locations via :class:`FOAMMesh`.
+
+        :getter: returns control volume centers
+        :type: pt.Tensor
+        """
+        return self._mesh.get_cell_centers()
+
+    @property
+    def weights(self) -> pt.Tensor:
+        """
         For results obtained using a finite volume method with co-located
-        arrangement, a sensible weight for a cell-centered value is the cell
-        volume.
+        arrangement (OpenFOAM), a sensible weight for a cell-centered value
+        is the cell volume. The cell volumes are availabe via the
+        :class:`FOAMMesh` class.
 
-        :return: cell volumes
-        :rtype: pt.Tensor
+        :getter: returns cell volumes
+        :type: pt.Tensor
         """
-        volumes = self._mesh.get_cell_volumes()
-        return volumes[start_at:min(batch_size, volumes.size()[0])]
+        return self._mesh.get_cell_volumes()
 
 
 class FOAMCase(object):
