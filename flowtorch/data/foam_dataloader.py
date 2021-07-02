@@ -13,11 +13,13 @@ import glob
 import os
 import struct
 import sys
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 # third party packages
 import torch as pt
 # flowtorch packages
+from flowtorch import DEFAULT_DTYPE
 from .dataloader import Dataloader
+from .utils import check_and_standardize_path
 from .mpi_tools import main_bcast, log_message
 
 
@@ -32,7 +34,6 @@ MESH_FILES = ["points", "owner", "neighbour", "faces", "boundary"]
 
 MAX_LINE_HEADER = 30
 MAX_LINE_INTERNAL_FIELD = 40
-BIG_INT = 1e15
 
 SIZE_OF_CHAR = struct.calcsize("c")
 SIZE_OF_INT = struct.calcsize("i")
@@ -71,7 +72,7 @@ class FOAMDataloader(Dataloader):
 
     """
 
-    def __init__(self, path: str, dtype: str = pt.float32):
+    def __init__(self, path: str, dtype: str = DEFAULT_DTYPE):
         """Create a FOAMDataloader instance from a path.
 
         :param path: path to an OpenFOAM simulation folder.
@@ -87,8 +88,7 @@ class FOAMDataloader(Dataloader):
     def _parse_data(self, data: List[str]) -> pt.Tensor:
         field_type = self._field_type(data[:MAX_LINE_HEADER])
         if not field_type in FIELD_TYPE_DIMENSION.keys():
-            sys.exit(
-                "Error: field type {:s} not supported.".format(field_type))
+            raise ValueError(f"Field type {field_type} not supported.")
         try:
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
                 field_data = self._unpack_internalfield_binary(
@@ -143,7 +143,7 @@ class FOAMDataloader(Dataloader):
         else:
             return pt.tensor(values, dtype=self._dtype)
 
-    def load_snapshot(self, field_name: str, time: str) -> pt.Tensor:
+    def _load_single_snapshot(self, field_name: str, time: str) -> pt.Tensor:
         file_paths = []
         if self._case._distributed:
             for proc in range(self._case._processors):
@@ -153,26 +153,62 @@ class FOAMDataloader(Dataloader):
             file_paths.append(self._case.build_file_path(field_name, time, 0))
         field_data = []
         for file_path in file_paths:
-            try:
-                with open(file_path, "rb") as file:
-                    field_data.append(self._parse_data(file.readlines()))
-            except Exception as e:
-                print("Error: could not read file {:s}".format(file_path))
-                print(e)
-        joint_data = pt.cat(field_data)
-        return joint_data[start_at:min(batch_size, joint_data.size()[0])]
+            with open(file_path, "rb") as file:
+                field_data.append(self._parse_data(file.readlines()))
+        return pt.cat(field_data)
 
-    @property
+    def _load_multiple_snapshots(self, field_name: str, times: List[str]) -> pt.Tensor:
+        return pt.stack(
+            [self._load_single_snapshot(field_name, time) for time in times],
+            dim=-1
+        )
+
+    def _check_list_or_str(self, arg_value: Union[List[str], str], arg_name):
+        """Check if argument is of type list or string.
+
+        If the input is a list, an additional check is performed to ensure that
+        the list has at list one entry and that all entries are strings.
+
+        """
+        message = f"Argument {arg_name} must be a string or a list of strings."
+        if isinstance(arg_value, list):
+            if len(arg_value) < 1:
+                raise ValueError(f"The list {arg_name} must not be empty.")
+            if not all([isinstance(arg, str) for arg in arg_value]):
+                raise ValueError(message)
+        else:
+            if not isinstance(arg_value, str):
+                raise ValueError(message)
+
+    def load_snapshot(self,
+                      field_name: Union[List[str], str],
+                      time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
+        self._check_list_or_str(field_name, "field_name")
+        self._check_list_or_str(time, "time")
+        # load multiple fields
+        if isinstance(field_name, list):
+            if isinstance(time, list):
+                return [self._load_multiple_snapshots(name, time) for name in field_name]
+            else:
+                return [self._load_single_snapshot(name, time) for name in field_name]
+        # load a single field
+        else:
+            if isinstance(time, list):
+                return self._load_multiple_snapshots(field_name, time)
+            else:
+                return self._load_single_snapshot(field_name, time)
+
+    @ property
     def write_times(self) -> List[str]:
         """
         Access to available snapshot/write times via :func:`FOAMCase._eval_write_times`.
 
         :getter: returns the available write times
-        :type: List[str] 
+        :type: List[str]
         """
         return self._case._time_folders
 
-    @property
+    @ property
     def field_names(self) -> Dict[str, List[str]]:
         """
         Access to the available field names for all available write times via
@@ -183,7 +219,7 @@ class FOAMDataloader(Dataloader):
         """
         return self._case._field_names
 
-    @property
+    @ property
     def vertices(self) -> pt.Tensor:
         """
         In OpenFOAM, field for post-processing are defined at the control volume's
@@ -195,7 +231,7 @@ class FOAMDataloader(Dataloader):
         """
         return self._mesh.get_cell_centers()
 
-    @property
+    @ property
     def weights(self) -> pt.Tensor:
         """
         For results obtained using a finite volume method with co-located
@@ -228,11 +264,7 @@ class FOAMCase(object):
         :type path: str
 
         """
-        self._path = path
-        if not os.path.exists(self._path):
-            sys.exit("Error: could not find case {:s}".format(self._path))
-        if self._path[-1] == "/":
-            self._path = self._path[:-1]
+        self._path = check_and_standardize_path(path)
         self._distributed = self._eval_distributed()
         self._processors = self._eval_processors()
         self._time_folders = self._eval_write_times()
@@ -250,7 +282,7 @@ class FOAMCase(object):
                     return False
         return False
 
-    @main_bcast
+    @ main_bcast
     def _check_mesh_files(self) -> bool:
         """Check if all mesh files are available.
         """
@@ -273,7 +305,7 @@ class FOAMCase(object):
             ]
         return all(files_found)
 
-    @main_bcast
+    @ main_bcast
     def _eval_distributed(self) -> bool:
         """Check if the simulation case is distributed (parallel).
 
@@ -287,7 +319,7 @@ class FOAMCase(object):
         proc_dirs = glob.glob(self._path + "/processor*")
         return len(proc_dirs) > 0
 
-    @main_bcast
+    @ main_bcast
     def _eval_processors(self) -> int:
         """Get number of processor folders.
 
@@ -300,7 +332,7 @@ class FOAMCase(object):
         else:
             return 1
 
-    @main_bcast
+    @ main_bcast
     def _eval_write_times(self) -> List[str]:
         """Assemble a list of all write times.
 
@@ -331,7 +363,7 @@ class FOAMCase(object):
             )
         return sorted(time_dirs, key=float)
 
-    @main_bcast
+    @ main_bcast
     def _eval_field_names(self) -> Dict[str, List[str]]:
         """Get a dictionary of all fields and files in all time folders.
 
@@ -380,7 +412,8 @@ class FOAMCase(object):
         >>> case._time_folders
         ['0', '0.1', '0.2', '0.3', '0.4', '0.5']
         >>> case._field_names
-        {'0': ['U', 'p'], '0.1': ['U', 'p', 'phi'], '0.2': ['U', 'p', 'phi'], '0.3': ['U', 'p', 'phi'], '0.4': ['U', 'p', 'phi'], '0.5': ['U', 'p', 'phi']}
+        {'0': ['U', 'p'], '0.1': ['U', 'p', 'phi'], '0.2': ['U', 'p', 'phi'], '0.3': [
+            'U', 'p', 'phi'], '0.4': ['U', 'p', 'phi'], '0.5': ['U', 'p', 'phi']}
         >>> case.build_file_path("U", "0.1", 1)
         './cavity_binary_parallel/processor1/0.1/U'
 
@@ -441,7 +474,7 @@ class FOAMMesh(object):
 
     """
 
-    def __init__(self, case: FOAMCase, dtype: str = pt.float32):
+    def __init__(self, case: FOAMCase, dtype: str = DEFAULT_DTYPE):
         """Create FOAMMesh object based on :class:`FOAMCase`.
         """
         if not isinstance(case, FOAMCase):
@@ -453,8 +486,8 @@ class FOAMMesh(object):
         self._cell_centers = None
         self._cell_volumes = None
 
-    @classmethod
-    def from_path(cls, path: str, dtype: str = pt.float32):
+    @ classmethod
+    def from_path(cls, path: str, dtype: str = DEFAULT_DTYPE):
         """Create FOAMMesh object based on path to OpenFOAM simulation case.
         """
         return cls(FOAMCase(path), dtype)
