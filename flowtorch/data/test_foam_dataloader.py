@@ -1,11 +1,12 @@
+# standard library packages
 import os
 import pytest
 import sys
+# third party packages
 import torch as pt
+# flowtorch packages
+from flowtorch import FLOAT_TOLERANCE
 from flowtorch.data import FOAMDataloader, FOAMCase, FOAMMesh
-
-# default data type is float32
-FLOAT_TOLERANCE = 1.0e-4
 
 
 class FOAMTestData:
@@ -224,22 +225,6 @@ class TestFOAMMesh:
             assert pt.sum(n_points_faces - 4).item() == 0
             assert pt.sum(faces[0] - first_face).item() == 0
 
-    def test_parse_faces_cylinder(self):
-        n_faces = 55059
-        first_face =  pt.tensor([1, 2, 14027, 14026], dtype=pt.int32)
-        mesh_path = "/constant/polyMesh/"
-        paths = [
-            "test/test_data/run/of_cylinder2D_ascii/",
-            "test/test_data/run/of_cylinder2D_binary/"
-        ]
-        for path in paths:
-            case = FOAMCase(path)
-            mesh = FOAMMesh(case)
-            n_points_faces, faces = mesh._parse_faces(case._path + mesh_path)
-            assert faces.size()[0] == n_faces
-            assert pt.sum(n_points_faces[:10, 0] - 4).item() == 0
-            assert pt.sum(faces[0, :n_points_faces[0, 0]] - first_face).item() == 0
-
     def test_parse_owners_and_neighbors(self, get_test_data):
         for key in get_test_data.paths.keys():
             case = FOAMCase(get_test_data.paths[key])
@@ -297,21 +282,57 @@ class TestFOAMDataloader:
         for key in get_test_data.paths.keys():
             case = get_test_data.paths[key]
             loader = FOAMDataloader(case)
-            times = loader.write_times()
+            times = loader.write_times
             p_sum = get_test_data.p_sum[key]
             for time in times[1:]:
                 field = loader.load_snapshot("p", time)
+                # the sum operation is more sensitive to floating point inaccuracies
+                # then a direct comparison of field values; therefore the tolerance is increased
                 assert pt.abs(pt.sum(field) -
-                              p_sum[time]).item() < FLOAT_TOLERANCE
+                              p_sum[time]).item() < 1.0e-4
 
     def test_load_vector_snapshot(self, get_test_data):
         for key in get_test_data.paths.keys():
             case = get_test_data.paths[key]
             loader = FOAMDataloader(case)
-            times = loader.write_times()
+            times = loader.write_times
             U_sum = get_test_data.U_sum[key]
             for time in times[1:]:
                 field = loader.load_snapshot("U", time)
                 difference = pt.sum(
                     pt.abs(pt.sum(field, dim=0) - pt.tensor(U_sum[time])))
-                assert difference.item() < FLOAT_TOLERANCE
+                # the sum operation is more sensitive to floating point inaccuracies
+                # then a direct comparison of field values; therefore the tolerance is increased
+                assert difference.item() < 1.0e-4
+
+    def test_load_unsupported_field(self, get_test_data):
+        key = list(get_test_data.paths.keys())[0]
+        loader = FOAMDataloader(get_test_data.paths[key])
+        times = loader.write_times
+        with pytest.raises(ValueError):
+            loader.load_snapshot("phi", times[-1])
+
+    def test_check_list_or_str(self, get_test_data):
+        key = list(get_test_data.paths.keys())[0]
+        loader = FOAMDataloader(get_test_data.paths[key])
+        with pytest.raises(ValueError):
+            loader._check_list_or_str([], "test")
+        with pytest.raises(ValueError):
+            loader._check_list_or_str(0, "test")
+        with pytest.raises(ValueError):
+            loader._check_list_or_str(["", 0], "test")
+
+    def test_load_multiple_fields(self, get_test_data):
+        key = list(get_test_data.paths.keys())[0]
+        loader = FOAMDataloader(get_test_data.paths[key])
+        times = loader.write_times
+        data = loader.load_snapshot(["p", "U"], times[-1])
+        assert len(data) == 2
+
+    def test_load_multiple_times(self, get_test_data):
+        key = list(get_test_data.paths.keys())[0]
+        loader = FOAMDataloader(get_test_data.paths[key])
+        times = loader.write_times[1:]
+        data = loader.load_snapshot("U", times)
+        assert data.shape[-1] == len(times)
+        assert data.shape[-2] == 3
