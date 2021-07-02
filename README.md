@@ -25,11 +25,11 @@ from flowtorch.analysis.dmd import DMD
 loader = FOAMDataloader("run/flow_past_cylinder/")
 
 # select a subset of the available snapshots
-times = loader.write_times()
+times = loader.write_times
 window_times = [time for time in times if float(time) >= 4.0]
 
 # load vertices, discard z-coordinate, and create a mask
-vertices = loader.get_vertices()[:, :2]
+vertices = loader.vertices[:, :2]
 mask = mask_box(vertices, lower=[0.1, -1], upper=[0.75, 1])
 
 # assemble the data matrix
