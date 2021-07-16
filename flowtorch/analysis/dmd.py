@@ -5,18 +5,10 @@
 from typing import Tuple
 # third party packages
 import torch as pt
-import numpy as np
+from numpy import pi
 # flowtorch packages
 from .svd import SVD
 from flowtorch.data.utils import format_byte_size
-
-
-DTYPE_MAPPING = {
-    pt.float32: pt.complex32,
-    pt.float64: pt.complex64,
-    pt.complex32: pt.complex32,
-    pt.complex64: pt.complex64
-}
 
 
 class DMD(object):
@@ -26,34 +18,24 @@ class DMD(object):
         self._eigvals, self._eigvecs, self._modes = self._compute_mode_decomposition()
 
     def _compute_mode_decomposition(self):
-        """Compute DMD modes and corresponding eigenvalues.
-
-        .. note::
-        This function will be changed with the release of PyTorch 1.9,
-        which introduces CPU/GPU enabled eigen-decomposition for complex
-        matrices. Until then, `numpy.linalg.eig` will be used.
-
+        """Compute reduced operator, eigen decomposition, and DMD modes.
         """
         s_inv = pt.diag(1.0 / self._svd.s)
         operator = (
             self._svd.U.conj().T @ self._dm[:, 1:] @ self._svd.V @ s_inv
         )
-        val, vec = np.linalg.eig(operator.numpy())
+        val, vec = pt.linalg.eig(operator)
         # type conversion is currently not implemented for pt.complex32
-        # for now, the dtype is always set to pt.complex64
-        # dtype = DTYPE_MAPPING.get(self._dm.dtype, pt.complex64)
-        dtype = pt.complex64
-        val = pt.from_numpy(val).type(dtype)
-        vec = pt.from_numpy(vec).type(dtype)
+        # such that the dtype for the modes is always pt.complex64
         phi = (
-            self._dm[:, 1:].type(dtype) @ self._svd.V.type(dtype)
-            @ s_inv.type(dtype) @ vec
+            self._dm[:, 1:].type(val.dtype) @ self._svd.V.type(val.dtype)
+            @ s_inv.type(val.dtype) @ vec
         )
         return val, vec, phi
 
     def spectrum(self, dt: float) -> Tuple[pt.Tensor, pt.Tensor]:
         omega = pt.log(self._eigvals) / dt
-        return omega.real, omega.imag / (2.0 * np.pi)
+        return omega.real, omega.imag / (2.0 * pi)
 
     def required_memory(self) -> int:
         """Compute the memory size in bytes of the DMD.
