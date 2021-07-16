@@ -11,4 +11,5 @@ literature
 build
 dist
 flowTorch.egg-info
+datasets
 

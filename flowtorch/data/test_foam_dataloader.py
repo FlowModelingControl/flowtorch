@@ -5,13 +5,12 @@ import sys
 # third party packages
 import torch as pt
 # flowtorch packages
-from flowtorch import FLOAT_TOLERANCE
+from flowtorch import FLOAT_TOLERANCE, DATASETS
 from flowtorch.data import FOAMDataloader, FOAMCase, FOAMMesh
 
 
 class FOAMTestData:
     def __init__(self):
-        self.data_path = "test/test_data/run/"
         self.test_cases = [
             "of_cavity_ascii",
             "of_cavity_binary",
@@ -29,8 +28,7 @@ class FOAMTestData:
             zip(self.test_cases, [times] * len(self.test_cases))
         )
         self.paths = dict(
-            zip(self.test_cases,
-                [self.data_path + case for case in self.test_cases])
+            zip(self.test_cases, [DATASETS[case] for case in self.test_cases])
         )
         self.file_paths = {}
         for case in self.test_cases:
@@ -44,11 +42,6 @@ class FOAMTestData:
                     self.paths[case] + "/{:s}/U".format(time)
                     for time in self.times[case]
                 ]
-
-        for key in self.paths.keys():
-            path = self.paths[key]
-            if not os.path.exists(path):
-                sys.exit("Error: could not find test case {:s}".format(path))
         field_names = {'0': ['U', 'p'],
                        '0.1': ['U', 'p', 'phi'],
                        '0.2': ['U', 'p', 'phi'],
