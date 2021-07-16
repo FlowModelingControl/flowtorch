@@ -19,7 +19,7 @@ import torch as pt
 # flowtorch packages
 from flowtorch import DEFAULT_DTYPE
 from .dataloader import Dataloader
-from .utils import check_and_standardize_path
+from .utils import check_and_standardize_path, check_list_or_str
 from .mpi_tools import main_bcast, log_message
 
 
@@ -163,28 +163,11 @@ class FOAMDataloader(Dataloader):
             dim=-1
         )
 
-    def _check_list_or_str(self, arg_value: Union[List[str], str], arg_name):
-        """Check if argument is of type list or string.
-
-        If the input is a list, an additional check is performed to ensure that
-        the list has at list one entry and that all entries are strings.
-
-        """
-        message = f"Argument {arg_name} must be a string or a list of strings."
-        if isinstance(arg_value, list):
-            if len(arg_value) < 1:
-                raise ValueError(f"The list {arg_name} must not be empty.")
-            if not all([isinstance(arg, str) for arg in arg_value]):
-                raise ValueError(message)
-        else:
-            if not isinstance(arg_value, str):
-                raise ValueError(message)
-
     def load_snapshot(self,
                       field_name: Union[List[str], str],
                       time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
-        self._check_list_or_str(field_name, "field_name")
-        self._check_list_or_str(time, "time")
+        check_list_or_str(field_name, "field_name")
+        check_list_or_str(time, "time")
         # load multiple fields
         if isinstance(field_name, list):
             if isinstance(time, list):

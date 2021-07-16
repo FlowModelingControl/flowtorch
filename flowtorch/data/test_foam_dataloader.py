@@ -305,16 +305,6 @@ class TestFOAMDataloader:
         with pytest.raises(ValueError):
             loader.load_snapshot("phi", times[-1])
 
-    def test_check_list_or_str(self, get_test_data):
-        key = list(get_test_data.paths.keys())[0]
-        loader = FOAMDataloader(get_test_data.paths[key])
-        with pytest.raises(ValueError):
-            loader._check_list_or_str([], "test")
-        with pytest.raises(ValueError):
-            loader._check_list_or_str(0, "test")
-        with pytest.raises(ValueError):
-            loader._check_list_or_str(["", 0], "test")
-
     def test_load_multiple_fields(self, get_test_data):
         key = list(get_test_data.paths.keys())[0]
         loader = FOAMDataloader(get_test_data.paths[key])

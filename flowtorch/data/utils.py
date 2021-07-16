@@ -2,7 +2,7 @@
 
 # standard library packages
 from os.path import exists
-from typing import Tuple
+from typing import Tuple, List, Union
 
 
 def format_byte_size(size: int) -> Tuple[float, str]:
@@ -42,3 +42,26 @@ def check_and_standardize_path(path: str, folder: bool = True):
             return path
     else:
         raise ValueError(f"Could not find {path}")
+
+
+def check_list_or_str(arg_value: Union[List[str], str], arg_name: str):
+    """Check if argument is of type list or string.
+
+    If the input is a list, an additional check is performed to ensure that
+    the list has at list one entry and that all entries are strings.
+
+    :param arg_value: object to perform the check on
+    :type arg_value: Union[List[str], str]
+    :param arg_name: additional argument name to provide informative error message
+    :param arg_name: str
+
+    """
+    message = f"Argument {arg_name} must be a string or a list of strings."
+    if isinstance(arg_value, list):
+        if len(arg_value) < 1:
+            raise ValueError(f"The list {arg_name} must not be empty.")
+        if not all([isinstance(arg, str) for arg in arg_value]):
+            raise ValueError(message)
+    else:
+        if not isinstance(arg_value, str):
+            raise ValueError(message)
