@@ -29,7 +29,7 @@ FIELD_TYPE_DIMENSION = {
 }
 CONSTANT_PATH = "constant/"
 POLYMESH_PATH = "constant/polyMesh/"
-MESH_FILES = ["points", "owner", "neighbour", "faces", "boundary"]
+MESH_FILES = ("points", "owner", "neighbour", "faces", "boundary")
 
 
 MAX_LINE_HEADER = 30
