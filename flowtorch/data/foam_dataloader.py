@@ -41,7 +41,7 @@ SIZE_OF_DOUBLE = struct.calcsize("d")
 
 
 class FOAMDataloader(Dataloader):
-    """Loads internal fields and mesh properties from OpenFOAM cases.
+    """Load internal fields and mesh properties of OpenFOAM cases.
 
     The project ofpp_ by Xu Xianghua has been a great
     help to implement some of the methods.
@@ -50,8 +50,10 @@ class FOAMDataloader(Dataloader):
 
     Examples
 
+    >>> from flowtorch import DATASETS
     >>> from flowtorch.data import FOAMDataloader
-    >>> loader = FOAMDataloader("./")
+    >>> path = DATASETS["of_cavity_ascii_parallel"]
+    >>> loader = FOAMDataloader(path)
     >>> loader.write_times
     ['0', '0.1', '0.2', '0.3', '0.4', '0.5']
     >>> loader.field_names
