@@ -48,7 +48,7 @@ Currently, the following sub-packages are under active development. Note that so
 
 | package | content |
 | :------ | :-------|
-|flowtorch.data | data loading, domain reduction (masked selection), and sampling, e.g., using *sparse spatial sampling* (S<sup>3</sup>) |
+|flowtorch.data | data loading, domain reduction (masked selection) |
 | flowtorch.analysis | algorithms for dimensionality reduction, including *proper orthogonal decomposition* (POD), *dynamic mode decomposition* (DMD), autoencoders, and variants thereof |
 | flowtorch.rom | reduced-order modeling using [cluster-based network models (CNM)](https://github.com/fernexda/cnm); to be added soon |
 
@@ -74,7 +74,18 @@ pip3 install dist/flowTorch-0.1-py3-none-any.whl
 pip3 uninstall flowtorch
 ```
 
-The repository contains a collection of examples as part of the documentation. To open the [Jupyter labs](https://jupyter.org/), navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the corresponding datasets are required, which are not included in this repository. Feel free to get in touch if you are interested in the datasets.
+The repository contains a collection of examples as part of the documentation. To open the [Jupyter labs](https://jupyter.org/), navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the corresponding datasets are required. The datasets can be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiUZaFzUuyX5SsAX8mh75rZJ/datasets_20_07_2021.tar.gz). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
+```
+tar xzf datasets_20_07_2021.tar.gz
+```
+To tell *flowTorch* where the datasets are located, define the `FLOWTORCH_DATASETS` environment variable:
+```
+# add export statement to bashrc; assumes that the extracted 'datasets'
+# folder is located in the current directory
+echo "export FLOWTORCH_DATASETS=\"$(pwd)/datasets/\"" >> ~/.bashrc
+# reload bashrc
+. ~/.bashrc
+```
 
 ## Development
 
