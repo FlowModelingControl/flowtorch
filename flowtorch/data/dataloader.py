@@ -6,24 +6,25 @@ formats.
 """
 
 from abc import ABC, abstractmethod, abstractproperty
-from typing import List, Dict
+from typing import List, Dict, Union
 from torch import Tensor
 
 
 class Dataloader(ABC):
-    r"""Abstract base class to define a common interface for dataloaders.
+    """Abstract base class to define a common interface for dataloaders.
     """
 
     @abstractmethod
-    def load_snapshot(self, field_name: str, time: str) -> Tensor:
-        """Load the snapshot of a single field.
+    def load_snapshot(self, field_name: Union[List[str], str],
+                      time: Union[List[str], str]) -> Union[List[Tensor], Tensor]:
+        """Load one or more snapshots of one or more fields.
 
         :param field_name: name of the field to load
-        :type field_name: str
+        :type field_name: Union[List[str], str]
         :param time: snapshot time
-        :type time: str
+        :type time: Union[List[str], str]
         :return: field values
-        :rtype: Tensor
+        :rtype: Union[List[Tensor], Tensor]
 
         """
         pass
