@@ -1,22 +1,28 @@
-r"""Module to read and write the internal flowTorch data format.
+"""Module to read and write the internal flowTorch data format.
 
 The :class:`HDF5Writer` class allows to write field and mesh data
-into an HDF5 file. It also creates XDMF files for postprocessing
-in ParaView. The :class:`HDF5Dataloader` is a concrete :class:`Dataloader`
-class that allows efficient batch access to simulation data stored in the
-internal flowTorch data format.
+into an HDF5 file. It also creates an XDMF accessor file for postprocessing
+in ParaView. The XDMF file creation is implemented in the :class:`XDMFWriter`
+class. The :class:`HDF5Dataloader` class is the complementary writer for the
+flowTorch data format. Moreover, the :class:`FOAM2HDF5` class allows conversion
+of reconstructed OpenFOAM simulation cases into the HDF5-based flowTorch format.
 """
 
-from .dataloader import Dataloader
-from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
-from .mpi_tools import main_only, main_bcast, job_conditional, log_message
-from typing import List
+# standard library packages
 from os.path import isfile, exists
 from os import remove
+from typing import List, Tuple, Dict, Union
+import sys
+# third party packages
 from h5py import File
 from mpi4py import MPI
 import torch as pt
-import sys
+# flowtorch packages
+from flowtorch import DEFAULT_DTYPE
+from .dataloader import Dataloader
+from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
+from .mpi_tools import main_only, main_bcast, job_conditional, log_message
+from .utils import check_list_or_str
 
 
 CONST_GROUP = "constant"
@@ -69,47 +75,80 @@ xdmf_dtype_conversion = {
 
 
 class HDF5Dataloader(Dataloader):
-    """
+    """Load HDF5-based flowTorch data.
+
+    Examples
+
+    >>> from flowtorch import HDF5Dataloader
+    >>> loader = HDF5Dataloader("flowtorch.hdf5")
+    >>> times = loader.write_times
+    >>> p, U = loader.load_snapshot(["p", "U"], write_times)
+    >>> vertices = loader.vertices
+
     """
 
-    def __init__(self, file_path: str, dtype: str = pt.float32):
-        """
+    def __init__(self, file_path: str, dtype: str = DEFAULT_DTYPE):
+        """Create HDF5Dataloader instance.
 
-        :param path: [description]
-        :type path: [type]
-        :param file_name: [description], defaults to FILE_NAME
-        :type file_name: [type], optional
-        :param dtype: [description], defaults to pt.float32
-        :type dtype: [type], optional
+        :param file_path: path to HDF5 file
+        :type file_path: str
+        :param dtype: tensor type of floating point values, defaults to DEFAULT_DTYPE
+        :type dtype: str, optional
         """
+        if not isfile(file_path):
+            raise FileNotFoundError(f"Could not find file {file_path}")
         self._file_path = file_path
-        if not isfile(self._file_path):
-            sys.exit("Error: could not find file {:s}".format(self._file_path))
-        self._file = File(self._file_path, mode="a", driver="mpio", comm=MPI.COMM_WORLD)
+        self._dtype = dtype
+        self._file = File(self._file_path, mode="a",
+                          driver="mpio", comm=MPI.COMM_WORLD)
 
-    def write_times(self):
+    def load_snapshot(self, field_name: Union[List[str], str],
+                      time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
+        check_list_or_str(field_name, "field_name")
+        check_list_or_str(time, "time")
+        # load multiple fields
+        if isinstance(field_name, list):
+            if isinstance(time, list):
+                return [pt.stack([pt.tensor(
+                        self._file[f"{VAR_GROUP}/{t}/{field}"][:], dtype=self._dtype
+                        ).squeeze() for t in time], dim=-1) for field in field_name]
+            else:
+                return [pt.tensor(
+                        self._file[f"{VAR_GROUP}/{time}/{field}"][:], dtype=self._dtype
+                        ).squeeze() for field in field_name]
+        # load single field
+        else:
+            if isinstance(time, list):
+                return pt.stack([pt.tensor(
+                    self._file[f"{VAR_GROUP}/{t}/{field_name}"][:], dtype=self._dtype
+                ).squeeze() for t in time], dim=-1)
+            else:
+                return pt.tensor(
+                    self._file[f"{VAR_GROUP}/{time}/{field_name}"][:], dtype=self._dtype
+                ).squeeze()
+
+    @property
+    def write_times(self) -> List[str]:
         return list(self._file[VAR_GROUP].keys())
 
-    def field_names(self):
-        times = self.write_times()
+    @property
+    def field_names(self) -> Dict[str, List[str]]:
+        times = self.write_times
         field_names = dict.fromkeys(times, [])
         for time in times:
             field_names[time] = list(self._file[f"{VAR_GROUP}/{time}"].keys())
         return field_names
 
-    def load_snapshot(self, field_name: str, time: str) -> pt.Tensor:
+    @property
+    def vertices(self) -> pt.Tensor:
         return pt.tensor(
-            self._file[f"{VAR_GROUP}/{time}/{field_name}"][:]
+            self._file[f"{CONST_GROUP}/{CENTERS_DS}"][:], dtype=self._dtype
         )
 
-    def get_vertices(self) -> pt.Tensor:
+    @property
+    def weights(self) -> pt.Tensor:
         return pt.tensor(
-            self._file[f"{CONST_GROUP}/{CENTERS_DS}"][:]
-        )
-
-    def get_weights(self) -> pt.Tensor:
-        return pt.tensor(
-            self._file[f"{CONST_GROUP}/{VOLUMES_DS}"][:]
+            self._file[f"{CONST_GROUP}/{VOLUMES_DS}"][:], dtype=self._dtype
         )
 
 
@@ -120,12 +159,22 @@ class HDF5Writer(object):
     - variable: (field) data that changes with times, e.g, snapshots
     - constant: constant data like mesh vertices or cell volumes
 
-    A XDMF accessor file can be created to support visual post-processing
+    An XDMF accessor file can be created to support visual post-processing
     with ParaView and other XDMF-compatible software packages.
+
+    Examples
+
+    >>> import torch as pt
+    >>> from flowtorch.data import HDF5Writer
+    >>> writer = HDF5Writer("test_file.hdf5")
+    >>> writer.write("ones", (3, 2), pt.ones((3, 2)), "0.01")
+    >>> int_data =  pt.ones((3, 2), dtype=pt.int32)
+    >>> writer.write("ones_int", (3, 2), int_data, dtype=pt.int32)
+
     """
 
     def __init__(self, file: str):
-        """Construct :class:`HDF5Writer` object based on file name.
+        """Write flowTorch HDF5 files.
 
         :param file: path and file name to HDF5 file.
         :type file: str
@@ -133,13 +182,12 @@ class HDF5Writer(object):
         self._file_path = file
         self._file = File(file, mode="a", driver="mpio", comm=MPI.COMM_WORLD)
 
-
     def write(self,
               name: str,
               size: tuple,
               data: pt.Tensor = None,
               time: str = None,
-              dtype: str = pt.float32
+              dtype: str = DEFAULT_DTYPE
               ):
         """Write data to HDF5 file.
 
@@ -188,13 +236,34 @@ class HDF5Writer(object):
 
 
 class FOAM2HDF5(object):
-    def __init__(self, path, dtype=pt.float32):
-        self._loader = FOAMDataloader(path)
+    """Convert reconstructed OpenFOAM cases to flowTorch HDF5 format.
+
+    If the simulation case is decomposed into processor folders/domains,
+    an info statement is displayed and no conversion is performed.
+
+    Examples
+
+    >>> from flowtorch import DATASETS
+    >>> from flowtorch.data import FOAM2HDF5
+    >>> converter = FOAM2HDF5(DATASETS["of_cavity_ascii"])
+    >>> converter.convert("cavity.hdf5", skip_zero=True)
+
+    """
+
+    def __init__(self, path: str, dtype=DEFAULT_DTYPE):
+        """Create FOAM2HDF5 converter from path.
+
+        :param path: path to OpenFOAM case
+        :type path: str
+        :param dtype: tensor type, defaults to DEFAULT_DTYPE
+        :type dtype: str, optional
+        """
+        self._loader = FOAMDataloader(path, dtype)
         self._dtype = dtype
         self._topology = None
         self._mesh_points = None
 
-    def convert(self, filename, skip_zero=True):
+    def convert(self, filename: str, skip_zero: bool = True):
         """Convert OpenFOAM case to flowTorch HDF5 file.
 
         :param filename: name of the HDF5 file
@@ -224,7 +293,7 @@ Workaround:
             writer.write_xdmf()
 
     @main_only
-    def _remove_file_if_present(self, file_path):
+    def _remove_file_if_present(self, file_path: str):
         """Remove output file from previous runs if present
 
         :param file_path: path to file
@@ -234,7 +303,7 @@ Workaround:
             print("Removing old file {:s}".format(file_path))
             remove(file_path)
 
-    def _convert_mesh(self, writer):
+    def _convert_mesh(self, writer: HDF5Writer):
         mesh_path = self._loader._case._path + "/" + POLYMESH_PATH
         n_cells, n_points, n_top = self._gather_mesh_information(mesh_path)
         data = self._get_vertices(mesh_path, job=0)
@@ -247,12 +316,12 @@ Workaround:
         writer.write(VOLUMES_DS, (n_cells,), data, None, self._dtype)
 
     @main_bcast
-    def _gather_mesh_information(self, mesh_path):
+    def _gather_mesh_information(self, mesh_path: str):
         """Gather information for parallel writing of mesh data.
 
 
-        :param mesh_path: [description]
-        :type mesh_path: [type]
+        :param mesh_path: path to polyMesh folder
+        :type mesh_path: str
         """
         n_cells = self._loader._mesh._get_n_cells(mesh_path)
         n_points_faces, faces = self._loader._mesh._parse_faces(mesh_path)
@@ -289,22 +358,22 @@ Workaround:
         return n_cells, self._mesh_points.size()[0], self._topology.size()[0]
 
     @job_conditional
-    def _get_topology(self, job=0):
+    def _get_topology(self, job: int = 0):
         return self._topology
 
     @job_conditional
-    def _get_vertices(self, mesh_path, job=0):
+    def _get_vertices(self, mesh_path: str, job: int = 0):
         return self._mesh_points
 
     @job_conditional
-    def _get_cell_centers(self, job=0):
+    def _get_cell_centers(self, job: int = 0):
         return self._loader._mesh.get_cell_centers()
 
     @job_conditional
-    def _get_cell_volumes(self, job=0):
+    def _get_cell_volumes(self, job: int = 0):
         return self._loader._mesh.get_cell_volumes()
 
-    def _convert_fields(self, writer, skip_zero):
+    def _convert_fields(self, writer: HDF5Writer, skip_zero: bool):
         """Convert convert OpenFOAM fields to HDF5.
 
         :param writer: HDF5 writer
@@ -314,12 +383,13 @@ Workaround:
         """
         field_info = self._gather_field_information(skip_zero)
         for job, info in enumerate(field_info):
-            print(f"Converting field {info[0]} at time {info[1]}, dimension {info[2]}")
+            print(
+                f"Converting field {info[0]} at time {info[1]}, dimension {info[2]}")
             data = self._load_field(*info[:2], job=job)
             writer.write(info[0], info[2], data, info[1])
 
     @main_bcast
-    def _gather_field_information(self, skip_zero):
+    def _gather_field_information(self, skip_zero: bool) -> List[list]:
         """Gather field information for parallel writing.
 
         - check if field type is supported
@@ -341,7 +411,7 @@ Workaround:
         field_info = []
         mesh_path = self._loader._case._path + "/" + POLYMESH_PATH
         n_cells = self._loader._mesh._get_n_cells(mesh_path)
-        all_fields = self._loader.field_names()
+        all_fields = self._loader.field_names
         if skip_zero and "0" in all_fields.keys():
             del all_fields["0"]
         for time in all_fields.keys():
@@ -355,12 +425,29 @@ Workaround:
         return field_info
 
     @job_conditional
-    def _load_field(self, field, time, job=0):
+    def _load_field(self, field: str, time: str, job: int = 0) -> pt.Tensor:
         return self._loader.load_snapshot(field, time)
 
 
 class XDMFWriter(object):
+    """Create XDMF file to open flowTorch HDF5 files in ParaView.
+
+    Example
+
+    >>> from flowtorch.data import XDMFWriter
+    >>> writer = XDMFWriter("flowtorch.hdf5")
+    >>> writer.create_xdmf("flowtorch.xdmf")
+
+    """
+
     def __init__(self, file_path: str, hdf5_file: File):
+        """Create XDMFWriter instance from path and file.
+
+        :param file_path: path to DHF5 file
+        :type file_path: str
+        :param hdf5_file: HDF5 file instance
+        :type hdf5_file: File
+        """
         if "/" in file_path:
             self._path = file_path[:file_path.rfind("/")]
             self._hdf5_filename = file_path[file_path.rfind("/") + 1:]
@@ -372,6 +459,11 @@ class XDMFWriter(object):
 
     @classmethod
     def from_filepath(cls, file_path: str):
+        """Create XDMFWriter from file path.
+
+        :param file_path: path to HDF5 file
+        :type file_path: str
+        """
         return cls(
             file_path,
             File(file_path, mode="a", driver="mpio", comm=MPI.COMM_WORLD)
