@@ -5,7 +5,7 @@
 
 # standard library packages
 from glob import glob
-from typing import Callable, Union, List
+from typing import Callable, Union, List, Dict
 # third party packages
 import torch as pt
 from vtk import vtkUnstructuredGridReader, vtkXMLUnstructuredGridReader
@@ -174,7 +174,7 @@ class VTKDataloader(Dataloader):
         return self._write_times
 
     @ property
-    def field_names(self) -> List[str]:
+    def field_names(self) -> Dict[str, List[str]]:
         if self._field_names is None:
             snapshot = self._create_vtk_reader(
                 self._build_file_path(self.write_times[0])
