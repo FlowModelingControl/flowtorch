@@ -1,120 +1,185 @@
-r"""Implementation of a concrete :class:`Dataloader` class.
+"""Module to load FOR2895 iPSP data.
 
 The :class:`PSPDataloader` class allows to load
 instationary pressure-sensitive paint (iPSP_) data provided by
-DLR (Deutsches Luft- und Raumfahrtzentrum).
+DLR (Deutsches Luft- und Raumfahrtzentrum) within the FOR2895
+research group.
 
 .. _iPSP: https://www.dlr.de/as/en/desktopdefault.aspx/tabid-183/251_read-13334/
 """
 
-from .dataloader import Dataloader
-from .mpi_tools import main_bcast
-from os.path import exists
-from h5py import File
-from mpi4py import MPI
+# standard library packages
 from math import ceil
-from typing import List
-import torch as pt
-import numpy as np
+from os.path import exists
+from typing import List, Dict, Union
 import sys
+# third party packages
+from h5py import File
+import numpy as np
+import torch as pt
+# flowtorch packages
+from flowtorch import DEFAULT_DTYPE
+from .dataloader import Dataloader
+from .utils import check_list_or_str
 
 
 COORDINATE_KEYS = ["CoordinatesX", "CoordinatesY", "CoordinatesZ"]
+INFO_KEY = "Info"
+PARAMETER_KEY = "Parameter"
+DESCRIPTION_KEY = "ParameterDescription"
 WEIGHT_KEY = "Mask"
-IGNORE_KEYS = ["Info", "Parameter", "ParameterDescription", "TimeValues", WEIGHT_KEY] + COORDINATE_KEYS
+TIME_KEY = "TimeValues"
+FIELDS = {
+    "Cp": "Images"
+}
+FREQUENCY_KEY = "SamplingFrequency"
 
 
 class PSPDataloader(Dataloader):
-    r"""
+    """Load iPSP data and meta data.
+
+    iPSP data comes as an HDF5 file with datasets organized in
+    different zones. Each zone has additional meta data related
+    to flow conditions and camera setting. The active zone may be
+    switched by seeting the `zone` attribute.
+
+    Examples
+
+    >>> from flowtorch import PSPDataloader
+    >>> loader = PSPDataloader("0226.hdf5")
+    >>> loader.zone_names
+    ['Zone0000', 'Zone0001']
+    >>> loader.info.keys()
+    ['AngleAttackAlpha', 'DateOfRecording', 'Mach', ...]
+    >>> loader.info["Mach"]
+    (0.903, 'Mach number')
+    >>> loader.zone_info.keys()
+    ['ExposureTime', 'NumberImages', 'PSPDeviceName', 'SamplingFrequency', 'ZoneName']
+    >>> loader.zone
+    Zone0000
+    >>> loader.zone = "Zone0001"
+    >>> loader.zone_info["ZoneName"]
+    HTP
+    >>> cp = loader.load_snapshot("Cp", loader.write_times[:10])
+    >>> cp.shape
+    torch.Size([250, 75, 10])
 
     """
 
-    def __init__(self, path: str, dtype: str = pt.float32):
+    def __init__(self, path: str, dtype: str = DEFAULT_DTYPE):
+        """Create PSPDataloader instance from file path.
+
+        :param path: path to iPSP file
+        :type path: str
+        :param dtype: tensor type, defaults to DEFAULT_DTYPE
+        :type dtype: str, optional
+        """
         self._path = path
         self._dtype = dtype
         if exists(self._path):
-            self._file = File(self._path, mode="r",
-                              driver="mpio", comm=MPI.COMM_WORLD)
+            self._file = File(self._path, mode="r")
         else:
-            sys.exit("Error: could not find file {:s}".format(self._path))
-        self._dataset_names = self.get_dataset_names()
-        if len(self._dataset_names) > 0:
-            self._dataset = self.get_dataset_names()[0]
+            raise FileNotFoundError(f"Could not find file {path}")
+        self._zone_names = None
+        self._zone = self.zone_names[0]
+        self._info = None
+
+    def _time_to_index(self, time: Union[List[str], str]) -> Union[List[int], int]:
+        freq = self.zone_info[FREQUENCY_KEY][0]
+        if isinstance(time, list):
+            return [int(round(float(t) * freq, 0)) for t in time]
         else:
-            print(
-                "Warning: could not find dataset in file {:s}".format(self._file))
-            self._dataset = None
-        self._attributes = self._get_attributes()
-        self._write_times = self._get_write_times()
+            return int(round(float(time) * freq, 0))
 
-    
+    def _load_single_field(self, field_name: str, ind: Union[np.ndarray, int]) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{self._zone}/{FIELDS[field_name]}"][:, :, ind],
+            dtype=self._dtype
+        )
 
-    @main_bcast
-    def _get_attributes(self) -> dict:
-        # TODO: read frequency from file once format is finalized
-        attributes = {
-            "Frequency": 2000.0
-        }
-        return attributes
-
-    @main_bcast
-    def _get_write_times(self):
-        freq = self._attributes["Frequency"]
-        fields = self.field_names()
-        data_path = "/".join([self._dataset, fields[0]])
-        n_snapshot = self._file[data_path].shape[-1]
-        return ["{:2.6f}".format(float(i)/freq) for i in range(n_snapshot)]
-
-    def _time_to_index(self, time):
-        freq = self._attributes["Frequency"]
-        return int(round(float(time) * freq, 0))
-
-    @main_bcast
-    def get_dataset_names(self) -> list:
-        all_keys = self._file.keys()
-        return [key for key in all_keys if not key in IGNORE_KEYS]
-
-    def select_dataset(self, name: str):
-        if name in self._dataset_names:
-            self._dataset = name
+    def load_snapshot(self, field_name: Union[List[str], str],
+                      time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
+        check_list_or_str(field_name, "field_name")
+        check_list_or_str(time, "time")
+        ind = self._time_to_index(time)
+        # load multiple fields
+        if isinstance(field_name, list):
+            if isinstance(time, list):
+                return [
+                    self._load_single_field(name, np.array(ind)) for name in field_name
+                ]
+            else:
+                return [
+                    self._load_single_field(name, ind) for name in field_name
+                ]
+        # load single field
         else:
-            possible_names = "\n".join(self._dataset_names)
-            print(
-                """Warning cannot select dataset {:s}. Available datasets are\n{:s}"""
-                .format(name, possible_names)
+            if isinstance(time, list):
+                return self._load_single_field(field_name, np.array(ind))
+            else:
+                return self._load_single_field(field_name, ind)
+
+    @property
+    def zone_names(self) -> List[str]:
+        if self._zone_names is None:
+            keys = self._file.keys()
+            self._zone_names = [key for key in keys if key.startswith("Zone")]
+            if len(self._zone_names) < 1:
+                raise ValueError(f"No valid zones in file {self._path}")
+        return self._zone_names
+
+    @property
+    def zone(self) -> str:
+        return self._zone
+
+    @zone.setter
+    def zone(self, zone_name: str):
+        if zone_name in self._zone_names:
+            self._zone = zone_name
+        else:
+            print(f"{zone_name} not found. Available zones are:")
+            print(self._zone_names)
+
+    @property
+    def info(self) -> Dict[str, tuple]:
+        if self._info is None:
+            parameters = self._file[f"{INFO_KEY}/{PARAMETER_KEY}"].attrs
+            descriptions = self._file[f"{INFO_KEY}/{DESCRIPTION_KEY}"].attrs
+            self._info = dict()
+            for key in parameters.keys():
+                self._info[key] = (
+                    parameters.get(key, ""), descriptions.get(key, "")
+                )
+        return self._info
+
+    @property
+    def zone_info(self) -> Dict[str, tuple]:
+        parameters = self._file[f"{self._zone}/{PARAMETER_KEY}"].attrs
+        descriptions = self._file[f"{self._zone}/{DESCRIPTION_KEY}"].attrs
+        self._zone_info = dict()
+        for key in parameters.keys():
+            self._zone_info[key] = (
+                parameters.get(key, ""), descriptions.get(key, "")
             )
-        print("Selected dataset: {:s}".format(self._dataset))
+        return self._zone_info
 
-    def write_times(self):
-        return self._write_times
+    @property
+    def write_times(self) -> List[str]:
+        times = self._file[f"{self._zone}/{TIME_KEY}"][:]
+        return [str(round(t, 8)) for t in times]
 
-    def field_names(self):
-        set_keys = self._file[self._dataset].keys()
-        return [key for key in set_keys if key not in IGNORE_KEYS]
+    @property
+    def field_names(self) -> Dict[str, List[str]]:
+        return {self.write_times[0]: list(FIELDS.keys())}
 
-    def load_snapshot(self, field_name: str, time: List[str]) -> pt.Tensor:
-        data_path = "/".join([self._dataset, field_name])
-        indices = np.array([self._time_to_index(t) for t in time])
-        if data_path in self._file:
-            field = pt.tensor(
-                self._file[data_path][:, :, indices],
-                dtype=self._dtype
-            )
-        else:
-            sys.exit("Dataset {:s} not found.".format(data_path))
-        return field
+    @property
+    def vertices(self) -> pt.Tensor:
+        return pt.stack([pt.tensor(
+            self._file[f"{self.zone}/{coord}"][:, :], dtype=self._dtype
+        ) for coord in COORDINATE_KEYS], dim=-1)
 
-    def get_vertices(self) -> pt.Tensor:
-        data_path = "/".join([self._dataset, "CoordinatesX"])
-        shape = self._file[data_path].shape
-        vertices = pt.zeros((*shape, 3), dtype=self._dtype)
-        for i, axis in enumerate(COORDINATE_KEYS):
-            data_path = "/".join([self._dataset, axis])
-            vertices[:, :, i] = pt.tensor(
-                self._file[data_path][:, :], dtype=self._dtype)
-        return vertices
-
-    def get_weights(self) -> pt.Tensor:
-        data_path = "/".join([self._dataset, "Mask/"])
-        weights = pt.tensor(self._file[data_path][:], dtype=self._dtype)
-        return weights
+    @property
+    def weights(self) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{self.zone}/{WEIGHT_KEY}"][:, :], dtype=self._dtype
+        )

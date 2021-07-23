@@ -1,83 +1,79 @@
+# standard library packages
 import pytest
+# third party packages
 import torch as pt
+# flowtorch packages
 from flowtorch.data import PSPDataloader
 
-
-class PSPTestData:
-    def __init__(self):
-        self.path = "test/test_data/private_data/S4_preliminary/"
-        self.test_file = "225.hdf5"
-        self.datasets = ["Zone0000", "Zone0001"]
-        self.write_times = dict(
-            zip(self.datasets, 
-            [['0.000000', '0.000500', '0.001000', '0.001500', '0.002000']]*len(self.datasets))
-        )
-        self.n_snapshots = dict(
-            zip(self.datasets, [4367, 4367])
-        )
-        self.field_name = dict(
-            zip(self.datasets, ["Images"]*2)
-        )
-        self.shapes = dict(
-            zip(self.datasets, [(465, 159), (250, 75)])
-        )
+# this path will be replaced once non-proprietary test data is available
+PATH = "/home/andre/Downloads/input/FOR/iPSP_reference_may_2021/0226.hdf5"
 
 
-@pytest.fixture()
-def get_test_data():
-    yield PSPTestData()
+class TestPSPDataloader():
+    def test_zone(self):
+        loader = PSPDataloader(PATH)
+        names = loader.zone_names
+        assert "Zone0000" in names and "Zone0001" in names
+        assert loader.zone == "Zone0000"
+        loader.zone = names[-1]
+        assert loader.zone == names[-1]
+        loader.zone = ""
+        assert loader.zone == names[-1]
 
+    def test_info(self):
+        loader = PSPDataloader(PATH)
+        info = loader.info
+        assert "Mach" in info.keys()
+        assert len(info["Mach"]) == 2
+        assert isinstance(info["Mach"][0], float)
+        assert isinstance(info["Mach"][1], str)
 
-class TestPSPDataloader:
-    def test_select_dataset(self, get_test_data):
-        file_path = get_test_data.path + get_test_data.test_file
-        loader = PSPDataloader(file_path)
-        datasets = get_test_data.datasets
-        assert loader._dataset_names == datasets
-        assert loader._dataset == datasets[0]
-        loader.select_dataset(datasets[1])
-        assert loader._dataset == datasets[1]
-        loader.select_dataset("Banana")
-        assert loader._dataset == datasets[1]
+    def test_zone_info(self):
+        loader = PSPDataloader(PATH)
+        info = loader.zone_info
+        assert "SamplingFrequency" in info
+        assert isinstance(info["SamplingFrequency"][0], float)
+        assert info["ZoneName"][0] == "Wing"
+        loader.zone = loader.zone_names[-1]
+        info = loader.zone_info
+        assert info["ZoneName"][0] == "HTP"
 
-    def test_write_times(self, get_test_data):
-        file_path = get_test_data.path + get_test_data.test_file
-        loader = PSPDataloader(file_path)
-        for dataset in get_test_data.datasets:
-            first_times = get_test_data.write_times[dataset]
-            loader.select_dataset(dataset)
-            assert loader.write_times()[:len(first_times)] == first_times
+    def test_time_to_index(self):
+        loader = PSPDataloader(PATH)
+        times = loader.write_times
+        indices = loader._time_to_index(times)
+        assert indices == list(range(4367))
 
-    def test_field_names(self, get_test_data):
-        file_path = get_test_data.path + get_test_data.test_file
-        loader = PSPDataloader(file_path)
-        for dataset in get_test_data.datasets:
-            loader.select_dataset(dataset)
-            assert loader.field_names()[0] == get_test_data.field_name[dataset]
-
-    def test_load_snapshot(self, get_test_data):
-        file_path = get_test_data.path + get_test_data.test_file
-        loader = PSPDataloader(file_path)
-        for dataset in get_test_data.datasets:
-            sample_time = get_test_data.write_times[dataset][-1]
-            field = get_test_data.field_name[dataset]
-            loader.select_dataset(dataset)
-            snapshot = loader.load_snapshot(field, sample_time)
-        assert snapshot.size() == get_test_data.shapes[dataset]
-
-    def test_get_vertices(self, get_test_data):
-        file_path = get_test_data.path + get_test_data.test_file
-        loader = PSPDataloader(file_path)
-        for dataset in get_test_data.datasets:
-            loader.select_dataset(dataset)
-            vertices = loader.get_vertices()
-            shape = get_test_data.shapes[dataset]
-            assert tuple(vertices.size()) == (*shape, 3)
-
-    def test_get_weights(self, get_test_data):
-        file_path = get_test_data.path + get_test_data.test_file
-        loader = PSPDataloader(file_path)
-        for dataset in get_test_data.datasets:
-            loader.select_dataset(dataset)
-            weights = loader.get_weights()
-            assert tuple(weights.size()) == get_test_data.shapes[dataset]
+    def test_common_properties(self):
+        loader = PSPDataloader(PATH)
+        n_snapshots = 4367
+        freq = 2000.5
+        times = loader.write_times
+        assert len(times) == n_snapshots
+        assert times[-1] == str(round((n_snapshots - 1) / freq, 8))
+        assert times[0] == str(round(0.0, 8))
+        fields = loader.field_names
+        assert len(fields.keys()) == 1
+        assert fields[times[0]][0] == "Cp"
+        vertices = loader.vertices
+        assert vertices.shape == (465, 159, 3)
+        weights = loader.weights
+        assert weights.shape == (465, 159)
+        loader.zone = loader.zone_names[-1]
+        vertices = loader.vertices
+        assert vertices.shape == (250, 75, 3)
+        weights = loader.weights
+        assert weights.shape == (250, 75)
+        # load single field, single snapshot
+        cp = loader.load_snapshot("Cp", times[-1])
+        assert cp.shape == (250, 75)
+        # load single field, multiple snapshots
+        cp_s = loader.load_snapshot("Cp", times[-10:])
+        assert cp_s.shape == (250, 75, 10)
+        assert pt.allclose(cp, cp_s[:, :, -1])
+        # load multiple fields, single snapshot
+        cp, = loader.load_snapshot(["Cp"], times[0])
+        assert cp.shape == (250, 75)
+        # load multiple fields, multiple snapshots
+        cp_s, = loader.load_snapshot(["Cp"], times[:10])
+        assert pt.allclose(cp, cp_s[:, :, 0])
