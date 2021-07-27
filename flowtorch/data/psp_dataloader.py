@@ -165,7 +165,13 @@ class PSPDataloader(Dataloader):
 
     @property
     def write_times(self) -> List[str]:
-        times = self._file[f"{self._zone}/{TIME_KEY}"][:]
+        freq = self.zone_info[FREQUENCY_KEY][0]
+        field_name = "Cp"
+        n_snapshots = self._file[f"{self._zone}/{FIELDS[field_name]}"].shape[-1]
+        times = [n/freq for n in range(n_snapshots)]
+        # loading the time dataset directly does not always work since the dataset
+        # keys sometimes have spelling mistakes, e.g, TimValues instead of TimeValues
+        # times = self._file[f"{self._zone}/{TIME_KEY}"][:]
         return [str(round(t, 8)) for t in times]
 
     @property
