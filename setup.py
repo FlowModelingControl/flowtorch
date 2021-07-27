@@ -42,7 +42,7 @@ setup(
         "numpy-stl",
         "pandas",
         "plotly",
-        "torch >= 1.8",
+        "torch >= 1.9",
         "vtk"
     ]
 )
