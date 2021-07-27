@@ -13,16 +13,19 @@ def test_DMD():
     loader = FOAMDataloader(path)
     times = loader.write_times[1:]
     data = loader.load_snapshot("p", times)
-    dmd = DMD(data, rank=3)
+    rank = 3
+    dmd = DMD(data, dt=0.1, rank=rank)
+    assert dmd.eigvals.shape == (rank,)
+    assert dmd.eigvals.dtype == pt.complex64
+    assert dmd.eigvecs.shape == (rank, rank)
+    assert dmd.eigvecs.dtype == pt.complex64
     assert dmd.modes.dtype == pt.complex64
-    assert dmd.modes.shape[0] == data.shape[0]
-    assert dmd.modes.shape[1] == 3
-    growth, freq = dmd.spectrum(0.1)
-    assert growth.shape[0] == 3
-    assert freq.shape[0] == 3
-    eigvals = dmd.eigvals
-    assert eigvals.shape[0] == 3
-    assert eigvals.dtype == pt.complex64
-    eigvecs = dmd.eigvecs
-    assert tuple(eigvecs.shape) == (3, 3)
-    assert eigvecs.dtype == pt.complex64
+    assert dmd.modes.shape == (data.shape[0], rank)
+    assert dmd.frequency.shape == (rank,)
+    assert dmd.growth_rate.shape == (rank,)
+    assert dmd.amplitude.shape == (rank,)
+    assert dmd.amplitude.dtype == pt.complex64
+    assert dmd.dynamics.shape == (rank, data.shape[-1])
+    assert dmd.dynamics.dtype == pt.complex64
+    assert dmd.reconstruction.shape == data.shape
+    assert dmd.reconstruction.dtype == data.dtype
