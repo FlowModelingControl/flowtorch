@@ -58,7 +58,7 @@ Currently, the following sub-packages are under active development. Note that so
 
 - data accessors return PyTorch tensors, which can be used directly within your favorite machine learning library, e.g., *PyTorch*, *SkLearn* or *Tensorflow*
 - most algorithms run on CPU as well as on GPU
-- mixed-precision operations (single/double); switching to single precision make your life significantly easier when dealing with large datasets
+- mixed-precision operations (single/double); switching to single precision makes your life significantly easier when dealing with large datasets
 - user-friendly Python library that integrates easily with popular tools and libraries like *Jupyterlab*, *Matplotlib*, *Pandas*, or *Numpy*
 - a rich tutorial collection to help you getting started
 - interfaces to common data formats like [OpenFOAM](https://www.openfoam.com/), [VTK](https://vtk.org/) (for Flexi and SU2), [TAU](https://www.dlr.de/as/desktopdefault.aspx/tabid-395/526_read-694/), [iPSP](https://www.dlr.de/as/en/desktopdefault.aspx/tabid-183/251_read-13334/), CSV (for DaVis PIV data and raw OpenFOAM output)
