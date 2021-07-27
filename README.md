@@ -15,14 +15,16 @@ https://user-images.githubusercontent.com/8482575/120886182-f2b78800-c5ec-11eb-9
 
 ## Why *flowTorch*?
 
-The *flowTorch* project was started with the intention to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. For example, performing a dynamic mode decomposition (DMD) of a transient *OpenFOAM* simulation looks as follows:
+The *flowTorch* project was started to make the analysis and modeling of fluid data **easy** and **accessible** to everyone. The library design intents to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. For example, performing a dynamic mode decomposition (DMD) of a transient *OpenFOAM* simulation looks as follows:
 
 ```
 import torch as pt
+from flowtorch import DATASETS
 from flowtorch.data import FOAMDataloader, mask_box
 from flowtorch.analysis.dmd import DMD
 
-loader = FOAMDataloader("run/flow_past_cylinder/")
+path = DATASETS["of_cylinder2D_binary"]
+loader = FOAMDataloader(path)
 
 # select a subset of the available snapshots
 times = loader.write_times
@@ -52,13 +54,14 @@ Currently, the following sub-packages are under active development. Note that so
 | flowtorch.analysis | algorithms for dimensionality reduction, including *proper orthogonal decomposition* (POD), *dynamic mode decomposition* (DMD), autoencoders, and variants thereof |
 | flowtorch.rom | reduced-order modeling using [cluster-based network models (CNM)](https://github.com/fernexda/cnm); to be added soon |
 
-*flowTorch* uses the [PyTorch](https://github.com/pytorch/pytorch) library as a backend for data structures, data types, and linear algebra operations on CPU and GPU. Some features in which *flowTorch* differs from similar packages include:
+*flowTorch* uses the [PyTorch](https://github.com/pytorch/pytorch) library as a backend for data structures, data types, and linear algebra operations on CPU and GPU. Some cool features of *flowTorch* include:
 
-- parallel data processing on multiple CPUs and GPUs
-- mixed-precision operations (single/double)
+- data accessors return PyTorch tensors, which can be used directly within your favorite machine learning library, e.g., *PyTorch*, *SkLearn* or *Tensorflow*
+- most algorithms run on CPU as well as on GPU
+- mixed-precision operations (single/double); switching to single precision make your life significantly easier when dealing with large datasets
 - user-friendly Python library that integrates easily with popular tools and libraries like *Jupyterlab*, *Matplotlib*, *Pandas*, or *Numpy*
-- a tutorial collection to help you getting started
-- interfaces to common data formats like [OpenFOAM](https://www.openfoam.com/), [CGNS](https://cgns.github.io/) (more are on the way)
+- a rich tutorial collection to help you getting started
+- interfaces to common data formats like [OpenFOAM](https://www.openfoam.com/), [VTK](https://vtk.org/) (for Flexi and SU2), [TAU](https://www.dlr.de/as/desktopdefault.aspx/tabid-395/526_read-694/), [iPSP](https://www.dlr.de/as/en/desktopdefault.aspx/tabid-183/251_read-13334/), CSV (for DaVis PIV data and raw OpenFOAM output)
 
 ## Getting started
 
