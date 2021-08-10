@@ -66,15 +66,15 @@ class DMD(object):
         )
         return val, vec, phi
 
+    @property
     def required_memory(self) -> int:
         """Compute the memory size in bytes of the DMD.
 
         :return: cumulative size of SVD, eigen values/vectors, and
             DMD modes in bytes
         :rtype: int
-
         """
-        return (self._svd.required_memory() +
+        return (self._svd.required_memory +
                 self._eigvals.element_size() * self._eigvals.nelement() +
                 self._eigvecs.element_size() * self._eigvecs.nelement() +
                 self._modes.element_size() * self._modes.nelement())
@@ -123,6 +123,6 @@ class DMD(object):
 
     def __str__(self):
         ms = ["SVD:", str(self.svd), "LSQ:"]
-        size, unit = format_byte_size(self.required_memory())
+        size, unit = format_byte_size(self.required_memory)
         ms.append("Overall DMD size: {:1.4f}{:s}".format(size, unit))
         return "\n".join(ms)
