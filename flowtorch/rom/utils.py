@@ -23,3 +23,20 @@ def log_time(func) -> dict:
         log = func(*args, **kwargs)
         return {**log, "execution_time": time()-start_time}
     return measure_time
+
+
+def check_positive_integer(value: int, name: str):
+    """Check if an input value is a positive integer.
+
+    :param value: input value to check
+    :type value: int
+    :param name: name of the parameter
+    :type name: str
+    :raises ValueError: if the argument is not an integer
+    :raises ValueError: if the argument is less than one
+    """
+    message = f"The argument of {name} must be a positive integer"
+    if not isinstance(value, int):
+        raise ValueError(message)
+    if value < 1:
+        raise ValueError(message)

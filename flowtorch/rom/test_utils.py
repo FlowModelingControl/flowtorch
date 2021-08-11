@@ -1,7 +1,8 @@
 # standard library packages
 from time import sleep
+from pytest import raises
 # flowtorch packages
-from .utils import log_time
+from .utils import log_time, check_positive_integer
 
 
 def test_log_time():
@@ -13,3 +14,11 @@ def test_log_time():
     assert "execution_time" in log.keys()
     assert "test" in log.keys()
     assert abs(log["execution_time"] - 0.1) < 0.01
+
+
+def test_check_positive_integer():
+    with raises(ValueError):
+        check_positive_integer(1.0, "name")
+    with raises(ValueError):
+        check_positive_integer(0, "name")
+    check_positive_integer(1, "name")
