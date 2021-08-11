@@ -23,6 +23,7 @@ class SVDEncoder(Encoder):
     >>> data.shape
     torch.Size([13678, 10]
     >>> encoder = SVDEncoder(rank=10)
+    >>> info = encoder.train(data)
     >>> reduced_state = encoder.encode(data)
     >>> reduced_state.shape
     torch.Size([10, 10]
@@ -79,6 +80,8 @@ class SVDEncoder(Encoder):
         :rtype: pt.Tensor
         """
         self._check_state_shape(full_state.shape)
+        if not self.trained:
+            raise Exception("Encoding not possible: the encoder has not been trained")
         return self._modes.conj().T @ full_state
 
     def decode(self, reduced_state: pt.Tensor) -> pt.Tensor:
@@ -93,6 +96,8 @@ class SVDEncoder(Encoder):
         :rtype: pt.Tensor
         """
         self._check_reduced_state_size(reduced_state.shape)
+        if not self.trained:
+            raise Exception("Decoding not possible: the encoder has not been trained")
         return self._modes @ reduced_state
 
     @property
