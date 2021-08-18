@@ -53,8 +53,28 @@ class CNM(ROM):
     :param model_order: number of past cluster to consider when predicting
         the next cluster
     :type model_order: int, optional
+    :param Q: transition probabilities
+    :type Q: Dict[str, np.ndarray]
+    :param T: transition times
+    :type T: Dict[str, float]
+    :param times: times at which cluster centroids were visited
+    :type times: List[float]
+    :param visited_clusters: clusters visited during the temporal evolution
+    :type visited_clusters: List[int]
+    :param cluster_centers: centroids of clusters
+    :type cluster_centers: np.ndarray
 
     Examples
+    
+    >>> from flowtorch.rom import SVDEncoder, CNM
+    ... assemble data matrix
+    >>> encoder = SVDEncoder(rank=20)
+    >>> info = encoder.train(data_matrix)
+    >>> reduced_state = encoder.encode(data_matrix)
+    >>> cnm = CNM(reduced_state, encoder, n_clusters=20, model_order=4)
+    >>> prediction = cnm.predict(data_matrix[:, :5], end_time=1.0, step_size=0.1)
+    >>> reduced_prediction = cnm.predict_reduced(reduced_state[:, :5], 1.0, 0.1)
+    >>> full_prediction = encoder.decode(reduced_prediction)
 
     """
 
