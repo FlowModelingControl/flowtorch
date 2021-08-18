@@ -50,7 +50,5 @@ class TestSVDEncoder():
         x0 = encoder.decode(a0)
         assert pt.allclose(self.data[:, 0], x0, rtol=1.0e-2)
         A = encoder.encode(self.data)
-        print(A.shape)
         X = encoder.decode(A)
-        print(X.shape)
         assert pt.allclose(self.data, X, rtol=1.0e-2)

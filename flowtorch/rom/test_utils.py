@@ -1,8 +1,11 @@
 # standard library packages
 from time import sleep
 from pytest import raises
+# third party libraries
+import numpy as np
 # flowtorch packages
-from .utils import log_time, check_positive_integer
+from .utils import (log_time, check_int_larger_than,
+                    remove_sequential_duplicates)
 
 
 def test_log_time():
@@ -16,9 +19,17 @@ def test_log_time():
     assert abs(log["execution_time"] - 0.1) < 0.01
 
 
-def test_check_positive_integer():
+def test_check_int_larger_than():
     with raises(ValueError):
-        check_positive_integer(1.0, "name")
+        check_int_larger_than(1.0, 0, "name")
     with raises(ValueError):
-        check_positive_integer(0, "name")
-    check_positive_integer(1, "name")
+        check_int_larger_than(0, 0, "name")
+    check_int_larger_than(1, 0, "name")
+
+
+def test_remove_sequential_duplicates():
+    sequence = np.array([1, 1, 2, 2, 3, 4, 5, 5])
+    assert np.allclose(
+        remove_sequential_duplicates(sequence),
+        np.array([1, 2, 3, 4, 5])
+    )

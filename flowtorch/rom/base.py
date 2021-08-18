@@ -135,11 +135,11 @@ class ROM(ABC):
     This base class should be used when defining new ROMs.
     """
 
-    def __init__(self, reduced_state: Tensor, encoder: Encoder = None):
+    def __init__(self, reduced_state: Tensor, encoder: Encoder):
         self.encoder = encoder
         self._check_reduced_state(reduced_state)
 
-    def _check_reduced_sate(self, reduced_state: Tensor):
+    def _check_reduced_state(self, reduced_state: Tensor):
         if not len(reduced_state.shape) == 2:
             raise ValueError(
                 "The time series of reduced state vectors must have exactly 2 dimensions")
@@ -179,7 +179,7 @@ class ROM(ABC):
                         end_time: float, step_size: float) -> Tensor:
         """Predict the evolution of a given initial reduced state vector.
 
-        :param initial_state: [description]
+        :param initial_state: initial reduced state vector
         :type initial_state: Tensor
         :param end_time: when to stop the simulation; the corresponding
             start time is always assumed to be zero
@@ -203,7 +203,7 @@ class ROM(ABC):
         if encoder is None:
             self._encoder = encoder
         else:
-            if not issubclass(encoder, Encoder):
+            if not issubclass(type(encoder), Encoder):
                 raise ValueError("The encoder must be a subclass of Encoder")
             if not encoder.trained:
                 raise ValueError(
