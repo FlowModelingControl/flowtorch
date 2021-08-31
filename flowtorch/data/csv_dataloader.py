@@ -110,7 +110,7 @@ class CSVDataloader(Dataloader):
         self._read_options = read_options
         self._time_folders = time_folders
         self._dtype = dtype
-        self._write_times = None
+        self._write_times = self._determine_write_times()
 
     @classmethod
     def from_davis(cls, path: str, prefix: str = "", suffix: str = ".dat", dtype: str = DEFAULT_DTYPE):
@@ -187,6 +187,19 @@ class CSVDataloader(Dataloader):
         options = {key: self._read_options[key] for key in PANDAS_ARGS}
         return read_csv(file_path, **options)
 
+    def _determine_write_times(self):
+        if self._time_folders:
+            folders = glob(f"{self._path}/*")
+            return sorted(
+                [folder.split("/")[-1] for folder in folders], key=float
+            )
+        else:
+            files = glob(self._build_file_path("*"))
+            return sorted(
+                [f.split("/")[-1][len(self._prefix):-len(self._suffix)]
+                 for f in files], key=float
+            )
+
     def load_snapshot(self,
                       field_name: Union[List[str], str],
                       time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
@@ -224,18 +237,6 @@ class CSVDataloader(Dataloader):
 
     @property
     def write_times(self) -> List[str]:
-        if self._write_times is None:
-            if self._time_folders:
-                folders = glob(f"{self._path}/*")
-                self._write_times = sorted(
-                    [folder.split("/")[-1] for folder in folders], key=float
-                )
-            else:
-                files = glob(self._build_file_path("*"))
-                self._write_times = sorted(
-                    [f.split("/")[-1][len(self._prefix):-len(self._suffix)]
-                     for f in files], key=float
-                )
         return self._write_times
 
     @property
