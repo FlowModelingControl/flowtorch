@@ -12,7 +12,7 @@ setup(
     long_description_content_type="text/markdown",
     author="flowTorch contributors",
     author_email="a.weiner@tu-braunschweig.de",
-    url="https://github.com/AndreWeiner/flowtorch",
+    url="https://github.com/FlowModelingControl/flowtorch",
     packages=["flowtorch", "flowtorch.data", "flowtorch.analysis", "flowtorch.rom"],
     license="GPL-v3",
     classifiers=[

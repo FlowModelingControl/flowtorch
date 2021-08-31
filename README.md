@@ -4,7 +4,7 @@
 
 **flowTorch** - a Python library for analysis and reduced order modeling of fluid flows
 
-*flowTorch* is developed primarily by the [Flow Modeling and Control group](https://www.tu-braunschweig.de/en/ism/research-workgroups/flow-modelling-and-control) led by [Richard Semaan](https://www.tu-braunschweig.de/en/ism/research/flow-modelling-and-control/staff/semaan). The development is financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.for2895.uni-stuttgart.de/)
+*flowTorch* is developed primarily by @AndreWeiner in the [Flow Modeling and Control group](https://www.tu-braunschweig.de/en/ism/research-workgroups/flow-modelling-and-control) led by [Richard Semaan](https://www.tu-braunschweig.de/en/ism/research/flow-modelling-and-control/staff/semaan). The development is financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.for2895.uni-stuttgart.de/)
 
 
 > unsteady flow and interaction phenomena at high speed stall conditions
@@ -52,7 +52,7 @@ Currently, the following sub-packages are under active development. Note that so
 | :------ | :-------|
 |flowtorch.data | data loading, domain reduction (masked selection) |
 | flowtorch.analysis | algorithms for dimensionality reduction, including *proper orthogonal decomposition* (POD), *dynamic mode decomposition* (DMD), autoencoders, and variants thereof |
-| flowtorch.rom | reduced-order modeling using [cluster-based network models (CNM)](https://github.com/fernexda/cnm); to be added soon |
+| flowtorch.rom | reduced-order modeling using [cluster-based network models (CNM)](https://github.com/fernexda/cnm) |
 
 *flowTorch* uses the [PyTorch](https://github.com/pytorch/pytorch) library as a backend for data structures, data types, and linear algebra operations on CPU and GPU. Some cool features of *flowTorch* include:
 
@@ -67,12 +67,8 @@ Currently, the following sub-packages are under active development. Note that so
 
 The easiest way to install *flowTorch* is as follows:
 ```
-# clone the repository
-git clone git@github.com:AndreWeiner/flowtorch.git
-# build the wheel
-python3 setup.py bdist_wheel
-# install flowTorch with pip
-pip3 install dist/flowTorch-0.1-py3-none-any.whl
+# install via pip
+pip3 install git+https://github.com/FlowModelingControl/flowtorch
 # to uninstall flowTorch, run
 pip3 uninstall flowtorch
 ```
@@ -100,11 +96,23 @@ To build the HTML version of the API documentation, navigate to `./docs` and run
 ```
 make html
 ```
-To perform unit testing, execute `pytest` in the repository's top-level folder. Note that additional test data are requirement for many of the tests. There are scripts located at `test/test_data` to create the test data yourself. Otherwise, feel free to get in touch.
+To perform unit testing, execute:
+```
+pytest flowtorch
+```
+You can also execute all tests in a sub-package, e.g., data
+```
+pytest flowtorch/data
+```
+or run individual test modules, e.g.,
+```
+pytest flowtorch/data/test_FOAMDataloader.py
+```
+Note that the unit tests rely on the datasets provided in the link above.
 
 ## Getting help
 
-If you encounter any issues using *flowTorch* or if you have any questions regarding current and future development plans, please use the repository's [issue tracker](https://github.com/AndreWeiner/flowtorch/issues). Consider the following steps before and when opening a new issue:
+If you encounter any issues using *flowTorch* or if you have any questions regarding current and future development plans, please use the repository's [issue tracker](https://github.com/FlowModelingControl/flowtorch/issues). Consider the following steps before and when opening a new issue:
 
 0. Have you searched for similar issues that may have been already reported? The issue tracker has a *filter* function to search for keywords in open issues.
 1. Click on the green *New issue* button in the upper right corner and describe your problem as detailed as possible. The issue should state what **the problem** is, what the **expected behavior** should be, and, maybe, suggest a **solution**. Note that you can also attach files or images to the issue.
@@ -117,5 +125,5 @@ If you encounter any issues using *flowTorch* or if you have any questions regar
 
 ## License
 
-*flowTorch* is [GPLv3](https://en.wikipedia.org/wiki/GNU_General_Public_License)-licensed; refer to the [LICENSE](https://github.com/AndreWeiner/flowtorch/blob/main/LICENSE) file for more information.
+*flowTorch* is [GPLv3](https://en.wikipedia.org/wiki/GNU_General_Public_License)-licensed; refer to the [LICENSE](https://github.com/FlowModelingControl/flowtorch/blob/main/LICENSE) file for more information.
 
