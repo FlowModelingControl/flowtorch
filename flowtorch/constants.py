@@ -22,10 +22,9 @@ def find_datasets(path: str) -> Dict[str, str]:
     if not isinstance(path, str):
         return dict()
     if isdir(path):
-        folders = [folder for folder in listdir(
-            path) if isdir(join(path, folder))]
-        folder_paths = [join(path, folder) for folder in folders]
-        return dict(zip(folders, folder_paths))
+        datasets = listdir(path)
+        dataset_paths = [join(path, folder) for folder in datasets]
+        return dict(zip(datasets, dataset_paths))
     else:
         return dict()
 

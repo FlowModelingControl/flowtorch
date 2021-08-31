@@ -3,15 +3,13 @@ import pytest
 # third party packages
 import torch as pt
 # flowtorch packages
+from flowtorch import DATASETS
 from flowtorch.data import PSPDataloader
-
-# this path will be replaced once non-proprietary test data is available
-PATH = "/home/andre/Downloads/input/FOR/iPSP_reference_may_2021/0226.hdf5"
 
 
 class TestPSPDataloader():
     def test_zone(self):
-        loader = PSPDataloader(PATH)
+        loader = PSPDataloader(DATASETS["ipsp_fake.hdf5"])
         names = loader.zone_names
         assert "Zone0000" in names and "Zone0001" in names
         assert loader.zone == "Zone0000"
@@ -21,7 +19,7 @@ class TestPSPDataloader():
         assert loader.zone == names[-1]
 
     def test_info(self):
-        loader = PSPDataloader(PATH)
+        loader = PSPDataloader(DATASETS["ipsp_fake.hdf5"])
         info = loader.info
         assert "Mach" in info.keys()
         assert len(info["Mach"]) == 2
@@ -29,25 +27,25 @@ class TestPSPDataloader():
         assert isinstance(info["Mach"][1], str)
 
     def test_zone_info(self):
-        loader = PSPDataloader(PATH)
+        loader = PSPDataloader(DATASETS["ipsp_fake.hdf5"])
         info = loader.zone_info
         assert "SamplingFrequency" in info
         assert isinstance(info["SamplingFrequency"][0], float)
-        assert info["ZoneName"][0] == "Wing"
+        assert info["ZoneName"][0] == "UpperSide"
         loader.zone = loader.zone_names[-1]
         info = loader.zone_info
-        assert info["ZoneName"][0] == "HTP"
+        assert info["ZoneName"][0] == "LowerSide"
 
     def test_time_to_index(self):
-        loader = PSPDataloader(PATH)
+        loader = PSPDataloader(DATASETS["ipsp_fake.hdf5"])
         times = loader.write_times
         indices = loader._time_to_index(times)
-        assert indices == list(range(4367))
+        assert indices == list(range(30))
 
     def test_common_properties(self):
-        loader = PSPDataloader(PATH)
-        n_snapshots = 4367
-        freq = 2000.5
+        loader = PSPDataloader(DATASETS["ipsp_fake.hdf5"])
+        n_snapshots = 30
+        freq = 10
         times = loader.write_times
         assert len(times) == n_snapshots
         assert times[-1] == str(round((n_snapshots - 1) / freq, 8))
@@ -56,24 +54,24 @@ class TestPSPDataloader():
         assert len(fields.keys()) == 1
         assert fields[times[0]][0] == "Cp"
         vertices = loader.vertices
-        assert vertices.shape == (465, 159, 3)
+        assert vertices.shape == (50, 20, 3)
         weights = loader.weights
-        assert weights.shape == (465, 159)
+        assert weights.shape == (50, 20)
         loader.zone = loader.zone_names[-1]
         vertices = loader.vertices
-        assert vertices.shape == (250, 75, 3)
+        assert vertices.shape == (50, 20, 3)
         weights = loader.weights
-        assert weights.shape == (250, 75)
+        assert weights.shape == (50, 20)
         # load single field, single snapshot
         cp = loader.load_snapshot("Cp", times[-1])
-        assert cp.shape == (250, 75)
+        assert cp.shape == (50, 20)
         # load single field, multiple snapshots
         cp_s = loader.load_snapshot("Cp", times[-10:])
-        assert cp_s.shape == (250, 75, 10)
+        assert cp_s.shape == (50, 20, 10)
         assert pt.allclose(cp, cp_s[:, :, -1])
         # load multiple fields, single snapshot
         cp, = loader.load_snapshot(["Cp"], times[0])
-        assert cp.shape == (250, 75)
+        assert cp.shape == (50, 20)
         # load multiple fields, multiple snapshots
         cp_s, = loader.load_snapshot(["Cp"], times[:10])
         assert pt.allclose(cp, cp_s[:, :, 0])
