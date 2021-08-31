@@ -5,7 +5,6 @@ import sys
 # third party packages
 import torch as pt
 from h5py import File
-from mpi4py import MPI
 # flowtorch packages
 from flowtorch import DATASET_PATH, DATASETS
 from flowtorch.data import HDF5Dataloader, HDF5Writer, FOAM2HDF5, XDMFWriter
@@ -37,8 +36,7 @@ class TestHDF5Writer():
         writer.write("twos", (3, 2), pt.ones(3, 2)*2, "0.01")
         writer.write("threes", (3, 2), pt.ones(3, 2)*3, "0.03")
         del writer
-        hdf5_file = File(file_path, mode="a",
-                         driver="mpio", comm=MPI.COMM_WORLD)
+        hdf5_file = File(file_path, mode="a")
         assert os.path.isfile(file_path)
         assert list(hdf5_file["variable"].keys()) == ["0.01", "0.03"]
         hdf5_file.close()
@@ -54,8 +52,7 @@ class TestHDF5Writer():
         writer.write("zeros_int", (3, 2), pt.zeros(
             (3, 2), dtype=pt.int32), dtype=pt.int32)
         del writer
-        hdf5_file = File(file_path, mode="a",
-                         driver="mpio", comm=MPI.COMM_WORLD)
+        hdf5_file = File(file_path, mode="a")
         assert list(hdf5_file["constant"].keys()) == [
             "zeros", "zeros_int", "zeros_single"]
         assert hdf5_file["constant/zeros"].dtype == "float64"
@@ -86,8 +83,7 @@ def test_conversion(get_test_data):
         del converter
         filename = case_path + "/flowtorch.hdf5"
         if os.path.isfile(filename):
-            hdf5_file = File(filename, mode="a",
-                             driver="mpio", comm=MPI.COMM_WORLD)
+            hdf5_file = File(filename, mode="a")
             const_keys = sorted(hdf5_file["constant"].keys())
             assert const_keys == get_test_data.const_group
             var_keys = sorted(hdf5_file["variable"].keys())

@@ -454,7 +454,7 @@ class XDMFWriter(object):
         """
         return cls(
             file_path,
-            File(file_path, mode="a", driver="mpio", comm=MPI.COMM_WORLD)
+            File(file_path, mode="a")
         )
 
     def _get_n_cells(self) -> int:
