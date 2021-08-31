@@ -4,7 +4,7 @@
 
 **flowTorch** - a Python library for analysis and reduced order modeling of fluid flows
 
-*flowTorch* is developed primarily by @AndreWeiner in the [Flow Modeling and Control group](https://www.tu-braunschweig.de/en/ism/research-workgroups/flow-modelling-and-control) led by [Richard Semaan](https://www.tu-braunschweig.de/en/ism/research/flow-modelling-and-control/staff/semaan). The development is financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.for2895.uni-stuttgart.de/)
+*flowTorch* is developed primarily by [@AndreWeiner](https://github.com/AndreWeiner) in the [Flow Modeling and Control group](https://www.tu-braunschweig.de/en/ism/research-workgroups/flow-modelling-and-control) led by [Richard Semaan](https://www.tu-braunschweig.de/en/ism/research/flow-modelling-and-control/staff/semaan). The development is financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.for2895.uni-stuttgart.de/)
 
 
 > unsteady flow and interaction phenomena at high speed stall conditions
