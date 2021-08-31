@@ -14,14 +14,12 @@ from os import remove
 from typing import List, Tuple, Dict, Union
 import sys
 # third party packages
-from h5py import File
-from mpi4py import MPI
 import torch as pt
+from h5py import File
 # flowtorch packages
 from flowtorch import DEFAULT_DTYPE
 from .dataloader import Dataloader
 from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
-from .mpi_tools import main_only, main_bcast, job_conditional, log_message
 from .utils import check_list_or_str
 
 
@@ -99,8 +97,7 @@ class HDF5Dataloader(Dataloader):
             raise FileNotFoundError(f"Could not find file {file_path}")
         self._file_path = file_path
         self._dtype = dtype
-        self._file = File(self._file_path, mode="a",
-                          driver="mpio", comm=MPI.COMM_WORLD)
+        self._file = File(self._file_path, mode="a")
 
     def load_snapshot(self, field_name: Union[List[str], str],
                       time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
@@ -180,7 +177,7 @@ class HDF5Writer(object):
         :type file: str
         """
         self._file_path = file
-        self._file = File(file, mode="a", driver="mpio", comm=MPI.COMM_WORLD)
+        self._file = File(file, mode="a")
 
     def write(self,
               name: str,
@@ -229,7 +226,6 @@ class HDF5Writer(object):
                     str(dtype), name)
             )
 
-    @main_only
     def write_xdmf(self):
         writer = XDMFWriter(self._file_path, self._file)
         writer.create_xdmf("flowtorch.xdmf")
@@ -281,18 +277,17 @@ Workaround:
     2. remove all processor* folders
     3. perform the conversion again (flowTorch)
             """
-            log_message(message)
+            print(message)
         else:
-            log_message("Writing data to file {:s}".format(file_path))
+            print("Writing data to file {:s}".format(file_path))
             writer = HDF5Writer(file_path)
-            log_message("Converting mesh.")
+            print("Converting mesh.")
             self._convert_mesh(writer)
-            log_message("Converting fields.")
+            print("Converting fields.")
             self._convert_fields(writer, skip_zero)
-            log_message("Conversion finished. Writing XDMF file.")
+            print("Conversion finished. Writing XDMF file.")
             writer.write_xdmf()
 
-    @main_only
     def _remove_file_if_present(self, file_path: str):
         """Remove output file from previous runs if present
 
@@ -315,7 +310,6 @@ Workaround:
         data = self._get_cell_volumes(job=1)
         writer.write(VOLUMES_DS, (n_cells,), data, None, self._dtype)
 
-    @main_bcast
     def _gather_mesh_information(self, mesh_path: str):
         """Gather information for parallel writing of mesh data.
 
@@ -357,19 +351,15 @@ Workaround:
                 marker += n_labels + 1
         return n_cells, self._mesh_points.size()[0], self._topology.size()[0]
 
-    @job_conditional
     def _get_topology(self, job: int = 0):
         return self._topology
 
-    @job_conditional
     def _get_vertices(self, mesh_path: str, job: int = 0):
         return self._mesh_points
 
-    @job_conditional
     def _get_cell_centers(self, job: int = 0):
         return self._loader._mesh.get_cell_centers()
 
-    @job_conditional
     def _get_cell_volumes(self, job: int = 0):
         return self._loader._mesh.get_cell_volumes()
 
@@ -388,7 +378,6 @@ Workaround:
             data = self._load_field(*info[:2], job=job)
             writer.write(info[0], info[2], data, info[1])
 
-    @main_bcast
     def _gather_field_information(self, skip_zero: bool) -> List[list]:
         """Gather field information for parallel writing.
 
@@ -424,7 +413,6 @@ Workaround:
                         [name, time, (n_cells, FIELD_TYPE_DIMENSION[field_type])])
         return field_info
 
-    @job_conditional
     def _load_field(self, field: str, time: str, job: int = 0) -> pt.Tensor:
         return self._loader.load_snapshot(field, time)
 
@@ -475,7 +463,7 @@ class XDMFWriter(object):
         if location in self._file:
             n_cells = self._file[location].shape[0]
         if n_cells == 0:
-            log_message("XDMF warning: could not determine number of cells.")
+            print("XDMF warning: could not determine number of cells.")
         return n_cells
 
     def _add_grid(self, time: str, offset: str = "") -> str:
@@ -569,7 +557,7 @@ class XDMFWriter(object):
                     ".")] + ".xdmf"
             else:
                 filename = self._hdf5_filename + ".xdmf"
-        log_message(
+        print(
             "Writing file {:s} as wrapper for {:s} at location {:s}".format(
                 filename, self._hdf5_filename, self._path
             )

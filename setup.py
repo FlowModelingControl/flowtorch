@@ -37,7 +37,6 @@ setup(
         "h5py",
         "netCDF4",
         "matplotlib",
-        "mpi4py",
         "numpy",
         "numpy-stl",
         "pandas",

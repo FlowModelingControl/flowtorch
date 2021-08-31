@@ -20,7 +20,6 @@ import torch as pt
 from flowtorch import DEFAULT_DTYPE
 from .dataloader import Dataloader
 from .utils import check_and_standardize_path, check_list_or_str
-from .mpi_tools import main_bcast, log_message
 
 
 FIELD_TYPE_DIMENSION = {
@@ -267,7 +266,6 @@ class FOAMCase(object):
                     return False
         return False
 
-    @ main_bcast
     def _check_mesh_files(self) -> bool:
         """Check if all mesh files are available.
         """
@@ -290,7 +288,6 @@ class FOAMCase(object):
             ]
         return all(files_found)
 
-    @ main_bcast
     def _eval_distributed(self) -> bool:
         """Check if the simulation case is distributed (parallel).
 
@@ -304,7 +301,6 @@ class FOAMCase(object):
         proc_dirs = glob.glob(self._path + "/processor*")
         return len(proc_dirs) > 0
 
-    @ main_bcast
     def _eval_processors(self) -> int:
         """Get number of processor folders.
 
@@ -317,7 +313,6 @@ class FOAMCase(object):
         else:
             return 1
 
-    @ main_bcast
     def _eval_write_times(self) -> List[str]:
         """Assemble a list of all write times.
 
@@ -348,7 +343,6 @@ class FOAMCase(object):
             )
         return sorted(time_dirs, key=float)
 
-    @ main_bcast
     def _eval_field_names(self) -> Dict[str, List[str]]:
         """Get a dictionary of all fields and files in all time folders.
 
@@ -819,7 +813,7 @@ class FOAMMesh(object):
             if self._centers_and_volumes_computed(
                 self._case._path + f"/{CONSTANT_PATH}"
             ):
-                log_message(
+                print(
                     f"Loading precomputed cell centers and volumes from {CONSTANT_PATH}")
                 centers = self._parse_cell_centers(
                     self._case._path + "/" + CONSTANT_PATH)
@@ -827,7 +821,7 @@ class FOAMMesh(object):
                     self._case._path + "/" + CONSTANT_PATH)
             else:
                 mesh_location = self._case._path + "/" + POLYMESH_PATH
-                log_message(
+                print(
                     "Could not find precomputed cell centers and volumes.\n" +
                     "Computing cell geometry from scratch (slow, not recommended for large meshes).\n" +
                     "To compute cell centers and volumes in OpenFOAM, run:\n\n" +
