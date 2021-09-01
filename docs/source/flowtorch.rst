@@ -8,3 +8,10 @@ flowtorch
    flowtorch.analysis
    flowtorch.rom
 
+flowtorch.constants
+-------------------
+
+.. automodule:: flowtorch.constants
+   :members:
+   :undoc-members:
+   :show-inheritance:

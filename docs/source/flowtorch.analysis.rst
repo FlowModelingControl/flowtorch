@@ -17,10 +17,10 @@ flowtorch.analysis.dmd
    :undoc-members:
    :show-inheritance:
 
-flowtorch.analysis.ipsp\_explorer
+flowtorch.analysis.psp\_explorer
 ---------------------------------
 
-.. automodule:: flowtorch.analysis.ipsp_explorer
+.. automodule:: flowtorch.analysis.psp_explorer
    :members:
    :undoc-members:
    :show-inheritance:

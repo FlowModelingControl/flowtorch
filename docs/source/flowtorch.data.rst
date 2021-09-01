@@ -9,14 +9,6 @@ flowtorch.data.dataloader
    :undoc-members:
    :show-inheritance:
 
-flowtorch.data.flexi\_dataloader
---------------------------------
-
-.. automodule:: flowtorch.data.flexi_dataloader
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 flowtorch.data.foam\_dataloader
 -------------------------------
 
@@ -42,18 +34,34 @@ flowtorch.data.psp\_dataloader
    :undoc-members:
    :show-inheritance:
 
-flowtorch.data.selection\_tools
--------------------------------
+flowtorch.data.vtk\_dataloader
+------------------------------
 
-.. automodule:: flowtorch.data.selection_tools
+.. automodule:: flowtorch.data.vtk_dataloader
    :members:
    :undoc-members:
    :show-inheritance:
 
-flowtorch.data.mpi\_tools
+flowtorch.data.csv\_dataloader
+------------------------------
+
+.. automodule:: flowtorch.data.csv_dataloader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+flowtorch.data.tau\_dataloader
+------------------------------
+
+.. automodule:: flowtorch.data.tau_dataloader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+flowtorch.data.selection\_tools
 -------------------------------
 
-.. automodule:: flowtorch.data.mpi_tools
+.. automodule:: flowtorch.data.selection_tools
    :members:
    :undoc-members:
    :show-inheritance:
