@@ -29,3 +29,11 @@ def test_DMD():
     assert dmd.dynamics.dtype == pt.complex64
     assert dmd.reconstruction.shape == data.shape
     assert dmd.reconstruction.dtype == data.dtype
+    partial = dmd.partial_reconstruction({0})
+    assert partial.dtype == data.dtype
+    assert partial.shape == data.shape
+    parital = dmd.partial_reconstruction({0, 2})
+    assert partial.dtype == data.dtype
+    assert partial.shape == data.shape
+
+

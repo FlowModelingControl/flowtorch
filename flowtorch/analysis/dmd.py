@@ -2,7 +2,7 @@
 """
 
 # standard library packages
-from typing import Tuple
+from typing import Tuple, Set
 # third party packages
 import torch as pt
 from numpy import pi
@@ -65,6 +65,24 @@ class DMD(object):
             @ s_inv.type(val.dtype) @ vec
         )
         return val, vec, phi
+
+    def partial_reconstruction(self, mode_indices: Set[int]) -> pt.Tensor:
+        """Reconstruct data matrix with limited number of modes.
+
+        :param mode_indices: mode indices to keep
+        :type mode_indices: Set[int]
+        :return: reconstructed data matrix
+        :rtype: pt.Tensor
+        """
+        rows, cols = self.modes.shape
+        mode_mask = pt.zeros(cols, dtype=pt.complex64)
+        mode_indices = pt.tensor(list(mode_indices), dtype=pt.int64)
+        mode_mask[mode_indices] = 1.0
+        reconstruction = (self.modes * mode_mask) @ self.dynamics
+        if self._dm.dtype in (pt.complex64, pt.complex32):
+            return reconstruction.type(self._dm.dtype)
+        else:
+            return reconstruction.real.type(self._dm.dtype)
 
     @property
     def required_memory(self) -> int:
