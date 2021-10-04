@@ -12,6 +12,7 @@ settings automatically.
 
 # standard library packages
 from glob import glob
+import re
 from typing import List, Dict, Tuple, Union
 # third party packages
 import torch as pt
@@ -28,7 +29,6 @@ FIELD_KEY = "fields"
 DAVIS_KEYS = {
     VERTEX_KEY: ["x", "y"],
     WEIGHT_KEY: "isValid",
-    FIELD_KEY: ["Vx", "Vy", "Vz"]
 }
 
 FOAM_SURFACE_KEYS = {
@@ -42,6 +42,17 @@ PANDAS_SEP = "sep"
 PANDAS_HEADER = "header"
 PANDAS_NAMES = "names"
 PANDAS_ARGS = (PANDAS_SKIPROWS, PANDAS_SEP, PANDAS_HEADER, PANDAS_NAMES)
+
+
+def _parse_davis_header(header: str) -> List[str]:
+    """Find column names in DaVis header line.
+
+    :param header: header line containing column names
+    :type header: str
+    :return: list of column names
+    :rtype: List[str]
+    """
+    return re.findall('"([^"]*)"', header)
 
 
 class CSVDataloader(Dataloader):
@@ -130,14 +141,26 @@ class CSVDataloader(Dataloader):
         :type dtype: str
 
         """
+        file_name = sorted(glob(f"{path}/{prefix}*{suffix}"))[0]
+        with open(file_name, "r") as davis_file:
+            content = davis_file.readlines()
+            for line in content:
+                if line.startswith("VARIABLES"):
+                    column_names = _parse_davis_header(line)
+                    break
+        if not set(DAVIS_KEYS[VERTEX_KEY]).issubset(set(column_names)):
+            print("Warning: DaVis files do not contain vertices")
+        if not set([DAVIS_KEYS[WEIGHT_KEY]]).issubset(set(column_names)):
+            print("Warning: DaVis files do not contain isValid mask")
         read_options = {
             PANDAS_SKIPROWS: [0, 1, 2],
             PANDAS_HEADER: None,
             PANDAS_SEP: " ",
-            PANDAS_NAMES: DAVIS_KEYS[VERTEX_KEY] + DAVIS_KEYS[FIELD_KEY] + [DAVIS_KEYS[WEIGHT_KEY]],
+            PANDAS_NAMES: column_names,
             VERTEX_KEY: DAVIS_KEYS[VERTEX_KEY],
             WEIGHT_KEY: DAVIS_KEYS[WEIGHT_KEY],
-            FIELD_KEY: DAVIS_KEYS[FIELD_KEY]
+            FIELD_KEY: [col for col in column_names if col not in
+                DAVIS_KEYS[VERTEX_KEY] + [DAVIS_KEYS[WEIGHT_KEY]]]
         }
         return cls(path, prefix, suffix, read_options, False, dtype)
 
