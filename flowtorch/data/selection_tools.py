@@ -24,7 +24,8 @@ def mask_box(vertices: pt.Tensor,
     :rtype: pt.Tensor
 
     """
-    assert len(vertices.shape) < 3, "The vertices tensor cannot have more than two axes."
+    assert len(
+        vertices.shape) < 3, "The vertices tensor cannot have more than two axes."
     dim_message = "Exactly one lower and upper bound must be given for each coordinate."
     if len(vertices.shape) == 1:
         assert len(lower) == len(upper) == 1, dim_message
@@ -42,5 +43,32 @@ def mask_box(vertices: pt.Tensor,
             dim=1
         )
 
-    
 
+def mask_sphere(vertices: pt.Tensor,
+                center: List[float],
+                radius: float) -> pt.Tensor:
+    """Create a boolean mask to select all vertices in a sphere.
+
+    This function may be used in conjunction with torch.masked_select to select
+    all field values within a sphere, e.g., when building data matrices.
+
+    :param vertices: tensor of vertices, where each column corresponds to a coordinate
+    :type vertices: pt.Tensor
+    :param center: the sphere's center
+    :type center: List[float]
+    :param radius: the sphere's radius
+    :type radius: float
+    :return: boolean mask that's *True* for every vertex inside the sphere
+    :rtype: pt.Tensor
+    """
+    center = pt.tensor(center)
+    assert len(
+        vertices.shape) < 3, "The vertices tensor cannot have more than two axes."
+    if len(vertices.shape) == 1:
+        assert len(center) == 1
+        radii = pt.abs(vertices - center)
+    else:
+        assert vertices.shape[1] == center.shape[0], \
+            "Missmatch between number of vertices and center coordinates."
+        radii = pt.linalg.norm(vertices - center, dim=1)
+    return pt.where(radii <= radius, True, False)

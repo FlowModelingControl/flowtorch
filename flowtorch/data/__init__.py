@@ -4,4 +4,4 @@ from .csv_dataloader import CSVDataloader
 from .vtk_dataloader import VTKDataloader
 from .psp_dataloader import PSPDataloader
 from .tau_dataloader import TAUDataloader
-from .selection_tools import mask_box
+from .selection_tools import mask_box, mask_sphere
