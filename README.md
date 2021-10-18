@@ -72,10 +72,9 @@ pip3 install git+https://github.com/FlowModelingControl/flowtorch
 # to uninstall flowTorch, run
 pip3 uninstall flowtorch
 ```
-
-The repository contains a collection of examples as part of the documentation. To open the [Jupyter labs](https://jupyter.org/), navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the corresponding datasets are required. The datasets can be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiUZaFzUuyX5SsAX8mh75rZJ/datasets_20_07_2021.tar.gz). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
+To get an overview of what *flowTorch* can do for you, have a look at the [online documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.0/index.html). The examples presented in the online documentation are also contained in this repository. In fact, the documentation is a static version of several [Jupyter labs](https://jupyter.org/) with start-to-end analyses. If you are interested in an interactive version of one particular example, navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the **corresponding datasets are required**. The datasets can be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiYBqV7Qq1cAxLBsxQpPBvsw/datasets_15_10_2021.tar.gz) (~2.5GB). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
 ```
-tar xzf datasets_20_07_2021.tar.gz
+tar xzf datasets_15_10_2021.tar.gz
 ```
 To tell *flowTorch* where the datasets are located, define the `FLOWTORCH_DATASETS` environment variable:
 ```
@@ -87,16 +86,24 @@ echo "export FLOWTORCH_DATASETS=\"$(pwd)/datasets/\"" >> ~/.bashrc
 ```
 
 ## Development
+### Documentation
 
-For documentation and testing, the following additional packages are required:
+To build the flowTorch documentation, the following additional packages are required:
 ```
-pip3 install sphinx sphinx_rtd_theme nbsphinx pytest recommonmark
+pip3 install sphinx sphinx_rtd_theme nbsphinx recommonmark
 ```
 To build the HTML version of the API documentation, navigate to `./docs` and run:
 ```
 make html
 ```
-To perform unit testing, execute:
+
+### Unit testing
+All sub-packages contain unit tests, which require the installation of PyTest:
+```
+pip3 install pytest
+```
+Moreover, the flowTorch datasets must be downloaded and referenced as described in the previous section.
+To run all unit tests of all sub-packages, execute:
 ```
 pytest flowtorch
 ```
@@ -108,7 +115,6 @@ or run individual test modules, e.g.,
 ```
 pytest flowtorch/data/test_FOAMDataloader.py
 ```
-Note that the unit tests rely on the datasets provided in the link above.
 
 ## Getting help
 
@@ -121,7 +127,7 @@ If you encounter any issues using *flowTorch* or if you have any questions regar
 
 ## Reference
 
-**TODO:** add citeable reference
+If *flowTorch* aids your work, you may support our work by referencing this repository.
 
 ## License
 
