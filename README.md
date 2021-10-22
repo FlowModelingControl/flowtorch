@@ -15,7 +15,7 @@ https://user-images.githubusercontent.com/8482575/120886182-f2b78800-c5ec-11eb-9
 
 ## Why *flowTorch*?
 
-The *flowTorch* project was started to make the analysis and modeling of fluid data **easy** and **accessible** to everyone. The library design intents to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. For example, performing a dynamic mode decomposition (DMD) of a transient *OpenFOAM* simulation looks as follows:
+The *flowTorch* project was started to make the analysis and modeling of fluid data **easy** and **accessible** to everyone. The library design intends to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. For example, performing a dynamic mode decomposition (DMD) of a transient *OpenFOAM* simulation looks as follows:
 
 ```
 import torch as pt
