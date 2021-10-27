@@ -72,6 +72,15 @@ pip3 install git+https://github.com/FlowModelingControl/flowtorch
 # to uninstall flowTorch, run
 pip3 uninstall flowtorch
 ```
+Alternatively, you can also clone the repository manually by running
+```
+git clone git@github.com:FlowModelingControl/flowtorch.git
+```
+and install the dependencies listed in *requirements.txt*:
+```
+pip3 install -r requirements.txt
+```
+
 To get an overview of what *flowTorch* can do for you, have a look at the [online documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.0/index.html). The examples presented in the online documentation are also contained in this repository. In fact, the documentation is a static version of several [Jupyter labs](https://jupyter.org/) with start-to-end analyses. If you are interested in an interactive version of one particular example, navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the **corresponding datasets are required**. The datasets can be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiYBqV7Qq1cAxLBsxQpPBvsw/datasets_15_10_2021.tar.gz) (~2.5GB). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
 ```
 tar xzf datasets_15_10_2021.tar.gz

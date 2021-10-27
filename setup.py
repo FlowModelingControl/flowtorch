@@ -42,6 +42,8 @@ setup(
         "pandas",
         "plotly",
         "torch >= 1.9",
+        "jupyterlab",
+        "scikit-learn",
         "vtk"
     ]
 )

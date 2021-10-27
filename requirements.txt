@@ -1,0 +1,11 @@
+h5py
+netCDF4
+matplotlib
+numpy
+numpy-stl
+pandas
+plotly
+torch >= 1.9
+jupyterlab
+scikit-learn
+vtk
