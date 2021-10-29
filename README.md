@@ -63,6 +63,11 @@ Currently, the following sub-packages are under active development. Note that so
 - a rich tutorial collection to help you getting started
 - interfaces to common data formats like [OpenFOAM](https://www.openfoam.com/), [VTK](https://vtk.org/) (for Flexi and SU2), [TAU](https://www.dlr.de/as/desktopdefault.aspx/tabid-395/526_read-694/), [iPSP](https://www.dlr.de/as/en/desktopdefault.aspx/tabid-183/251_read-13334/), CSV (for DaVis PIV data and raw OpenFOAM output)
 
+*flowTorch* can be also used easily in combination with existing Python packages for analysis and reduced-order modeling thanks to the interoperability between PyTorch and NumPy. Great examples are (by no means a comprehensive list):
+
+- [PyDMD](https://github.com/mathLab/PyDMD) - Python Dynamic Mode Decomposition
+- [PySINDy](https://github.com/dynamicslab/pysindy) - sparse identification of nonlinear dynamical systems from data
+
 ## Getting started
 
 The easiest way to install *flowTorch* is as follows:
