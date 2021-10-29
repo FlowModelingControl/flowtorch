@@ -14,7 +14,7 @@ authors:
     orcid: 0000-0002-3219-0545
     affiliation: 1
 affiliations:
- - name: Technische Universit\"at Braunschweig, Institute of Fluid Mechanics, Flow Modeling and Control Group
+ - name: Technische Universität Braunschweig, Institute of Fluid Mechanics, Flow Modeling and Control Group
    index: 1
 date: 05 August 2021
 bibliography: paper.bib
@@ -37,29 +37,31 @@ reduced-order models.
 # Statement of need
 
 Thanks to the increased processing power of modern hardware, fluid flow experiments as well as numerical simulations
-are producing vast amounts of highly resolved, complex data. Those data offer great opportunities to improve complex technical application or to understand natural phenomena. However, gaining insights from the data is becoming increasingly challenging. As data sizes grow, more attention has to be paid to the
-data format. While most researchers prefer simple text-encoded comma-separated value (CSV) files, big datasets require
+are producing vast amounts of highly resolved, complex data. Those data offer great opportunities to optimize industrial processes or to understand natural phenomena. As modern datasets continue to grow, post-processing pipelines will be increasingly important for synthesizing different data formats and facilitating complex data analysis. While most researchers prefer simple text-encoded comma-separated value (CSV) files, big datasets require
 special binary formats, such as [HDF5](https://www.hdfgroup.org/solutions/hdf5/) or [NetCDF](https://en.wikipedia.org/wiki/NetCDF).
 If the data are associated with a structured or an unstructured mesh, VTK files are a popular choice. Other simulation libraries for
-fluid flows, like OpenFOAM, organize mesh and field data in custom folder and file structures. CSV, VTK, or OpenFOAM data may come
+fluid flows, like OpenFOAM, organize mesh and field data in custom folder and file structures. On the experimental side, software packages
+like DaVis allow exporting particle image velocimetry (PIV) snapshots as CSV files. Reading CSV files can be a daunting task, too. A sequence of
+snapshots might be organized in one or multiple files. If the data are stored in a single file, the file must be read first and then the individual snapshots must be extracted following some initially unknown pattern. If the data are spread out over multiple files, the time might be encoded in the file name, but it could be also the case that
+the files are located in individual folders whose names encode the time. The latter structure is typical for OpenFOAM run time post-processing data.
+Moreover, different software packages will create different file headers, which may have to be parsed or sometimes ignored. CSV, VTK, or OpenFOAM data may come
 as binary or text-encoded files. This list is by no means comprehensive in terms of available formats and presents only the tip of the iceberg.
 
 A common research task may be to compare and combine different data sources of the same fluid flow problem for cross-validation
-or to leverage each source's strengths in different kinds of analysis. A typical example would be to compare or combine particle image velocity (PIV) data with sampled
+or to leverage each source's strengths in different kinds of analysis. A typical example would be to compare or combine PIV data with sampled
 planes extracted from a numerical simulation. The simulation offers greater details and additional field information, while the PIV experiment is more trustworthy since it
-is closer to the real application. The PIV data may have to be processed and cleaned before using it in consecutive analysis steps. When confronted with such ideas, researchers will spend a significant amount of time,
-if not most of the time, accessing, converting, and processing the data with different tools and different formats to finally analyze the data in yet another tool.
+is closer to the real application. The PIV data may have to be processed and cleaned before using it in consecutive analysis steps. Often, significant research time is spent on accessing, converting, and processing the data with different tools and different formats to finally analyze the data in yet another tool.
 Text-encoded file format might be convenient at first when exchanging data between tools, but for large datasets the additional conversion is unsuitable.
 
 `flowTorch` aims to simplify access to data by providing a unified interface to various data formats via the subpackage `flowtorch.data`. Accessing data from a
 distributed OpenFOAM simulation is as easy as loading VTK or PIV data and requires only a few lines of Python code. All field data
-are converted internally to PyTorch tensors [@paszke2015]. Once the data are available as PyTorch tensors, further processing steps like scaling, clipping, masking, splitting, or merging are readily available as single function calls. The same is true for computing statistics, performing modal analysis,
-or building reduced-order models via the subpackages `flowtorch.analysis` and `flowtorch.rom`. Computationally intensive tasks may be offloaded to the GPU if needed, which greatly accelerates parameter studies. The entire analysis workflow described in the previous section can be performed in a single ecosystem sketched in \autoref{fig:ft_structure}. Moreover, re-using an analysis pipeline in a different problem setting is straightforward.
+are converted internally to PyTorch tensors [@paszke2015]. Once the data are available as PyTorch tensors, further processing steps like scaling, clipping, masking, splitting, or merging are readily available as single function calls. The same is true for computing the mean, the standard deviation, histograms, or quantiles. Modal analysis techniques, like dynamic mode decomposition (DMD)[@schmid2010; @kutz2016] and proper orthogonal decomposition (POD)[@brunton2019; @semaan2020], are available via the subpackage `flowtorch.analysis`. The third subpackage, `flowtorch.rom`, enables adding reduced-order models (ROMs), like cluster-based network modeling (CNM)[@fernex2021], to the post-processing pipeline. Computationally intensive tasks may be offloaded to the GPU if needed, which greatly accelerates parameter studies. The entire analysis workflow described in the previous section can be performed in a single ecosystem sketched in \autoref{fig:ft_structure}. Moreover, re-using an analysis pipeline in a different problem setting is straightforward.
 
 ![Components of flowTorch and library dependencies.\label{fig:ft_structure}](media/flowtorch_components_plain.pdf){ width=90% }
 
-Another more general issue we want to address is the reproducibility of research outcomes. Popular algorithms like proper orthogonal
-decomposition (POD)[@brunton2019], or dynamic mode decomposition (DMD)[@schmid2010; @kutz2016], may be relatively easy to
+Besides the subpackages already available in `flowTorch`, the library also integrates nicely with related software packages like [ParaView](https://www.paraview.org/) or [VisIt](https://visit-dav.github.io/visit-website/index.html) for mesh-based post-processing as well as specialized analysis and modeling packages like PyDMD [@demo2018], PySINDy [@desilva2020], or [modred](https://github.com/belson17/modred). Rather than re-implementing functionality already existing in other established libraries, `flowTorch` wraps around them to simplify their usage and streamline the overall post-processing pipeline. For example, we use ParaView's [vtk](https://pypi.org/project/vtk/) package to access various types of VTK files in Python. Gathering point coordinates, write times, or snapshots from several VTK files requires very different steps than when dealing with OpenFOAM or DaVis data.  However, due to the common interface to data sources in `flowTorch`, these tasks appear to be exactly the same for the user. In contrast to `flowTorch`, PyDMD offers a wide range of DMD variants but does not provide access to data. If an advanced DMD algorithm is required, our library can be used to access and pre-process a dataset, before PyDMD is used to perform the modal decomposition.
+
+Another more general issue we want to address is the reproducibility of research outcomes. Popular algorithms, like POD or DMD, may be relatively easy to
 implement with libraries like NumPy, SciPy, or PyTorch. However,
 applying these algorithms to real datasets typically requires several pre-processing steps, like cropping, clipping, or normalizing the
 data, and careful tuning of the algorithms' free parameters (hyperparameters). Therefore, it is often unclear which exact steps were
@@ -78,7 +80,7 @@ Ultimately, our goal is to reduce redundant work as much as possible and enable 
 
 # Examples
 
-In this section, we demonstrate two applications of `flowTorch`. In the first example, DMD is employed to identify relevant modes in a transonic flow displaying shock-boundary-layer interactions. In the second example, a reduced-order model (ROM) of the flow past a circular cylinder is constructed employing cluster-based network modeling (CNM) [@fernex2021]. Both examples are also available as Jupyter labs and in the `flowTorch` documentation.
+In this section, we demonstrate two applications of `flowTorch`. In the first example, DMD is employed to identify relevant modes in a transonic flow displaying shock-boundary-layer interactions. In the second example, a ROM of the flow past a circular cylinder [@noack2003] is constructed employing CNM [@fernex2021]. Both examples are also available as Jupyter labs and in the `flowTorch` documentation.
 
 ## DMD analysis of airfoil surface data
 
@@ -91,7 +93,7 @@ from flowtorch.analysis import DMD
 ```
 `DATASETS` is a dictionary holding names and paths of all available datasets. The `CSVDataloader` provides easy access to the data, and the `mask_box` function allows selecting only a spatial subset of the raw data. As the name suggests, the `DMD` class enables us to perform a DMD analysis.
 
-The dataset we use here consists of surface pressure coefficient distributions sampled over a NACA-0012 airfoil in transonic flow conditions. At a Reynolds number of $Re=10^6$, a Mach number of $Ma=0.75$ and $\alpha = 4^\circ$ angle of attack, the flow displays a so-called shock buffet on the upper side of the airfoil. The shock buffet is a self-sustained unsteady interaction between the shock and the boundary layer separation. Our aim is to extract flow structures (modes) associated with the buffet phenomenon.
+The dataset we use here consists of surface pressure coefficient distributions sampled over a NACA-0012 airfoil in transonic flow conditions. The OpenFOAM configuration files to produce the dataset are available in a separate [GitHub repository](https://github.com/AndreWeiner/naca0012_shock_buffet). At a Reynolds number of $Re=10^6$, a Mach number of $Ma=0.75$ and $\alpha = 4^\circ$ angle of attack, the flow displays a so-called shock buffet on the upper side of the airfoil. The shock buffet is a self-sustained unsteady interaction between the shock and the boundary layer separation. Our aim is to extract flow structures (modes) associated with the buffet phenomenon.
 
 A code snippet to read the data, mask part of it, and build the data matrix reads:
 ```
@@ -123,11 +125,11 @@ modes_real = dmd.modes.real
 In contrast to POD, the DMD modes are not sorted by their variance, but rather form a spectrum.
 \autoref{fig:dmd} presents the real part of three spatial modes with the largest amplitudes. Also shown is their corresponding frequency.
 
-![Real part of three dominant DMD modes over the upper surface of a NACA-0012 airfoil. The shock is located at $x/c\approx 0.25$.\label{fig:dmd}](media/dmd_modes_airfoil_cp.pdf){ width=90% }
+![Real part of three dominant DMD modes over the upper surface of a NACA-0012 airfoil. The modes are normalized to the range $[0,1]$. The coordinates are normalized with the chord $c$. The shock is located at $x/c\approx 0.25$. Modes 8 and 18 are harmonics. The motion of the shock front is correlated with changes in the pressure values close to the trailing edge. This effect can be nicely observed via the mode animations in the documentation and indicates the existence of a physical link between both effects.\label{fig:dmd}](media/dmd_modes_airfoil_cp.pdf){ width=90% }
 
 ## CNM of the flow past a circular cylinder
 
-This example demonstrates how to model a flow using the CNM algorithm [@fernex2021]. In `flowTorch`, creating a ROM always consists of three step: i) encoding/reduction, ii) time evolution, and iii) decoding/reconstruction. In the code snippet below, we use an encoder based on the singular value decomposition (SVD) to reduce the dimensionality of the original snapshot sequence, and then predict the temporal evolution and reconstruct the flow over the period of $1s$.
+This example demonstrates how to model a flow using the CNM algorithm [@fernex2021]. Compared to the original CNM implementation available on [GitHub](https://github.com/fernexda/cnm), the version in `flowTorch` is refactored, more user-friendly, and extendible. In `flowTorch`, creating a ROM always consists of three steps: i) encoding/reduction, ii) time evolution, and iii) decoding/reconstruction. In the code snippet below, we use an encoder based on the singular value decomposition (SVD) to reduce the dimensionality of the original snapshot sequence, and then predict the temporal evolution and reconstruct the flow over the period of $1s$.
 
 ```
 ...
@@ -142,7 +144,7 @@ prediction = cnm.predict(data_matrix[:, :5], end_time=1.0, step_size=dt)
 ```
 The `predict` function computes the temporal evolution in the reduced state space and automatically performs the reconstruction. If we are only interested in the phase space, we can use `predict_reduced` instead, and reconstruct selected states using the encoder's `decode` method. The temporal evolution in the phase-space is displayed in \autoref{fig:cnm}.
 
-![Phase-space representation of data clustering (large dots) and trajectory; the smaller dots mark interpolated time steps and are colored by their cluster affiliation.\label{fig:cnm}](media/cnm_cluster_transition.pdf){ width=70% }
+![Phase-space representation of data clustering (large dots) and trajectory; the numbering reflects the sequence in which the centroids are visited; the smaller dots mark interpolated time steps between the centroids and are colored by their cluster affiliation (only for visualization).\label{fig:cnm}](media/cnm_cluster_transition.pdf){ width=70% }
 
 # Acknowledgements
 
