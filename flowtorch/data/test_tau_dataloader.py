@@ -18,7 +18,7 @@ class TestTAUDataloader():
         path = DATASETS["tau_backward_facing_step"]
         loader = TAUDataloader(path, "sol.pval.unsteady_")
         time_iter = loader._decompose_file_name()
-        assert len(time_iter.keys()) == 10
+        assert len(time_iter.keys()) == 2
         assert "2.9580000000e-02" in time_iter
         assert time_iter["2.9580000000e-02"] == "14790"
 
@@ -29,7 +29,7 @@ class TestTAUDataloader():
         assert times[0] == "2.9580000000e-02"
         assert times[-1] == "3.2190000000e-02"
         field_names = loader.field_names
-        assert len(field_names.keys()) == 10
+        assert len(field_names.keys()) == 2
         assert "density" in field_names[times[-1]]
         n_points = 1119348
         vertices = loader.vertices

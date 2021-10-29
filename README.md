@@ -88,12 +88,12 @@ and install the dependencies listed in *requirements.txt*:
 pip3 install -r requirements.txt
 ```
 
-To get an overview of what *flowTorch* can do for you, have a look at the [online documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.0/index.html). The examples presented in the online documentation are also contained in this repository. In fact, the documentation is a static version of several [Jupyter labs](https://jupyter.org/) with start-to-end analyses. If you are interested in an interactive version of one particular example, navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the **corresponding datasets are required**. The datasets can be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiYBqV7Qq1cAxLBsxQpPBvsw/datasets_15_10_2021.tar.gz) (~2.5GB). If the data are only required for unit testing, a reduced dataset may be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiRa7B4bNX8EcWuybbS3fXsL/datasets_minimal_15_10_2021.tar.gz) (~341MB). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
+To get an overview of what *flowTorch* can do for you, have a look at the [online documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.0/index.html). The examples presented in the online documentation are also contained in this repository. In fact, the documentation is a static version of several [Jupyter labs](https://jupyter.org/) with start-to-end analyses. If you are interested in an interactive version of one particular example, navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the **corresponding datasets are required**. The datasets can be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiQUyeDFx3sg2T6LLHBQoCCx/datasets_29_10_2021.tar.gz) (~1.4GB). If the data are only required for unit testing, a reduced dataset may be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiFZaHCgTWYeq1aZVg3hAui1/datasets_minimal_29_10_2021.tar.gz) (~384MB). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
 ```
 # full dataset
-tar xzf datasets_15_10_2021.tar.gz
+tar xzf datasets_29_10_2021.tar.gz
 # reduced dataset
-tar xzf datasets_minimal_15_10_2021.tar.gz
+tar xzf datasets_minimal_29_10_2021.tar.gz
 ```
 To tell *flowTorch* where the datasets are located, define the `FLOWTORCH_DATASETS` environment variable:
 ```
