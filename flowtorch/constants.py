@@ -11,7 +11,7 @@ from torch import float32
 def find_datasets(path: str) -> Dict[str, str]:
     """Find all available datasets/folders in a given location.
 
-    If the path does not exist, an empty dictionary is return.
+    If the path does not exist, an empty dictionary is returned.
 
     :param path: path to the folder containing the datasets
     :type path: str

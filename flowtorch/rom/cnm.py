@@ -81,6 +81,22 @@ class CNM(ROM):
     def __init__(self, reduced_state: pt.Tensor, encoder: Encoder,
                  dt: float, n_clusters: int = 10, model_order: int = 1,
                  cluster_config: dict = {}):
+        """Create a new CNM instance
+
+        :param reduced_state: time series data in the reduced state space
+        :type reduced_state: pt.Tensor
+        :param encoder: encoder instance used to map to the reduced state
+        :type encoder: Encoder
+        :param dt: time step between snapshots
+        :type dt: float
+        :param n_clusters: number of clusters, defaults to 10
+        :type n_clusters: int, optional
+        :param model_order: number of past states used to predict the next state;
+            defaults to 1
+        :type model_order: int, optional
+        :param cluster_config: optional parameters for clustering, defaults to {}
+        :type cluster_config: dict, optional
+        """
         # the base class performs compatibility checks of the input data
         super(CNM, self).__init__(reduced_state, encoder)
         self.dt = dt

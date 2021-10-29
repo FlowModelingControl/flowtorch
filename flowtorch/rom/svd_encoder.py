@@ -102,8 +102,18 @@ class SVDEncoder(Encoder):
 
     @property
     def state_shape(self) -> pt.Size:
+        """Get the size of the full state.
+
+        :return: size of the full state
+        :rtype: pt.Size
+        """
         return pt.Size((self._state_size,))
 
     @property
     def reduced_state_size(self) -> int:
+        """Get the size of the reduced state.
+
+        :return: size of the reduced state.
+        :rtype: int
+        """
         return self._rank

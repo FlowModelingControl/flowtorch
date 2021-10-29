@@ -65,6 +65,13 @@ class TAUDataloader(Dataloader):
         self._time_iter = self._decompose_file_name()
 
     def _find_grid_file(self) -> str:
+        """Determine the name of the grid file
+
+        :raises FileNotFoundError: if no grid file is found
+        :raises FileNotFoundError: if multiple grid files are found
+        :return: name of the grid file
+        :rtype: str
+        """
         files = glob(f"{self._path}/*.grd")
         if len(files) < 1:
             raise FileNotFoundError(
@@ -75,6 +82,13 @@ class TAUDataloader(Dataloader):
         return files[0].split("/")[-1]
 
     def _decompose_file_name(self) -> Dict[str, str]:
+        """Extract write time and iteration from file name.
+
+        :raises FileNotFoundError: if no solution files are found
+        :return: dictionary with write times as keys and the corresponding
+            iterations as values
+        :rtype: Dict[str, str]
+        """
         files = glob(f"{self._path}/{self._base_name}i=*t=*")
         if len(files) < 1:
             raise FileNotFoundError(
@@ -87,10 +101,26 @@ class TAUDataloader(Dataloader):
         return time_iter
 
     def _file_name(self, time: str) -> str:
+        """Create solution file name from write time.
+
+        :param time: snapshot write time
+        :type time: str
+        :return: name of solution file
+        :rtype: str
+        """
         itr = self._time_iter[time]
         return f"{self._path}/{self._base_name}i={itr}_t={time}"
 
     def _load_single_snapshot(self, field_name: str, time: str) -> pt.Tensor:
+        """Load a single snapshot of a single field from the netCDF4 file.
+
+        :param field_name: name of the field
+        :type field_name: str
+        :param time: snapshot write time
+        :type time: str
+        :return: tensor holding the field values
+        :rtype: pt.Tensor
+        """
         path = self._file_name(time)
         with Dataset(path) as data:
             field = pt.tensor(data.variables[field_name][:], dtype=self._dtype)

@@ -109,6 +109,13 @@ class VTKDataloader(Dataloader):
         return cls(path, vtkUnstructuredGridReader, prefix, suffix, dtype)
 
     def _create_vtk_reader(self, file_path: str) -> UnstructuredGrid:
+        """Create a VTK reader object for unstructured grids.
+
+        :param file_path: location of the VTK file
+        :type file_path: str
+        :return: VTK reader for unstructured grids
+        :rtype: UnstructuredGrid
+        """
         reader = self._vtk_reader()
         reader.SetFileName(file_path)
         if hasattr(reader, "ReadAllVectorsOn"):
@@ -119,6 +126,13 @@ class VTKDataloader(Dataloader):
         return WrapDataObject(reader.GetOutput())
 
     def _build_file_path(self, time: str) -> str:
+        """Create file path VTK file.
+
+        :param time: snapshot write time
+        :type time: str
+        :return: VTK file location
+        :rtype: str
+        """
         return f"{self._path}/{self._prefix}{time}{self._suffix}"
 
     def load_snapshot(self,

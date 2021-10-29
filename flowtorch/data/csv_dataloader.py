@@ -200,17 +200,41 @@ class CSVDataloader(Dataloader):
         return cls(path, file_name, "", read_options, True, dtype)
 
     def _build_file_path(self, time: str) -> str:
+        """Build the file path for a given time instance.
+
+        :param time: snapshot time
+        :type time: str
+        :return: path to snapshot
+        :rtype: str
+
+        """
         if self._time_folders:
             return f"{self._path}/{time}/{self._prefix}{self._suffix}"
         else:
             return f"{self._path}/{self._prefix}{time}{self._suffix}"
 
     def _load_csv(self, time: str) -> DataFrame:
+        """Load a single CSV snapshot.
+
+        :param time: snapshot time
+        :type time: str
+        :return: content of the CSV file stored in a DataFrame
+        :rtype: DataFrame
+
+        """
         file_path = self._build_file_path(time)
         options = {key: self._read_options[key] for key in PANDAS_ARGS}
         return read_csv(file_path, **options)
 
-    def _determine_write_times(self):
+    def _determine_write_times(self) -> List[str]:
+        """Find available snapshot times.
+
+        Depending on the storage format, the write times are
+        determined from the folder names or the file names.
+
+        :return: list of snapshot/write times
+        :rtype: List[str]
+        """
         if self._time_folders:
             folders = glob(f"{self._path}/*")
             return sorted(

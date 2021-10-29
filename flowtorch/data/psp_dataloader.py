@@ -85,6 +85,17 @@ class PSPDataloader(Dataloader):
         self._info = None
 
     def _time_to_index(self, time: Union[List[str], str]) -> Union[List[int], int]:
+        """Find the list index of a physical write time.
+
+        Snapshots are stored as multidimensional arrays in the HDF5 file.
+        This function finds the index in the dataset's time dimension
+        corresponding to a physical write time.
+
+        :param time: write time of list of write times
+        :type time: Union[List[str], str]
+        :return: index or list of indices
+        :rtype: Union[List[int], int]
+        """
         freq = self.zone_info[FREQUENCY_KEY][0]
         if isinstance(time, list):
             return [int(round(float(t) * freq, 0)) for t in time]
@@ -92,6 +103,18 @@ class PSPDataloader(Dataloader):
             return int(round(float(time) * freq, 0))
 
     def _load_single_field(self, field_name: str, ind: Union[np.ndarray, int]) -> pt.Tensor:
+        """Load a single field from the HDF5 file.
+
+        Note that there is usually a single field available in the iPSP data,
+        namely the pressure coefficient.
+
+        :param field_name: name of the field
+        :type field_name: str
+        :param ind: index or array of indices to load
+        :type ind: Union[np.ndarray, int]
+        :return: tensor holding the field values
+        :rtype: pt.Tensor
+        """
         return pt.tensor(
             self._file[f"{self._zone}/{FIELDS[field_name]}"][:, :, ind],
             dtype=self._dtype
@@ -121,6 +144,12 @@ class PSPDataloader(Dataloader):
 
     @property
     def zone_names(self) -> List[str]:
+        """Find the zone names available in the HDF5 file.
+
+        :raises ValueError: if no valid zones are found
+        :return: list of zone names
+        :rtype: List[str]
+        """
         if self._zone_names is None:
             keys = self._file.keys()
             self._zone_names = [key for key in keys if key.startswith("Zone")]
@@ -130,10 +159,20 @@ class PSPDataloader(Dataloader):
 
     @property
     def zone(self) -> str:
+        """Get the currently selected zone.
+
+        :return: currently selected zone
+        :rtype: str
+        """
         return self._zone
 
     @zone.setter
     def zone(self, zone_name: str):
+        """Set the active zone.
+
+        :param zone_name: name of the zone
+        :type zone_name: str
+        """
         if zone_name in self._zone_names:
             self._zone = zone_name
         else:
@@ -142,6 +181,11 @@ class PSPDataloader(Dataloader):
 
     @property
     def info(self) -> Dict[str, tuple]:
+        """Get iPSP metadata valid for entire file.
+
+        :return: dictionary of metadata values and descriptions
+        :rtype: Dict[str, tuple]
+        """
         if self._info is None:
             parameters = self._file[f"{INFO_KEY}/{PARAMETER_KEY}"].attrs
             descriptions = self._file[f"{INFO_KEY}/{DESCRIPTION_KEY}"].attrs
@@ -154,6 +198,11 @@ class PSPDataloader(Dataloader):
 
     @property
     def zone_info(self) -> Dict[str, tuple]:
+        """Get iPSP metadata for the currently selected zone.
+
+        :return: zone metadata
+        :rtype: Dict[str, tuple]
+        """
         parameters = self._file[f"{self._zone}/{PARAMETER_KEY}"].attrs
         descriptions = self._file[f"{self._zone}/{DESCRIPTION_KEY}"].attrs
         self._zone_info = dict()

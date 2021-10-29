@@ -118,6 +118,11 @@ class Encoder(ABC):
 
     @property
     def trained(self) -> bool:
+        """Get the training state
+
+        :return: True if training was completed
+        :rtype: bool
+        """
         return self._trained
 
     @trained.setter
@@ -136,10 +141,26 @@ class ROM(ABC):
     """
 
     def __init__(self, reduced_state: Tensor, encoder: Encoder):
+        """Create a new ROM instance.
+
+        This constructor will be typically called by the base class.
+
+        :param reduced_state: time series data in the reduced state space
+        :type reduced_state: Tensor
+        :param encoder: encoder used to create the time series data
+        :type encoder: Encoder
+        """
         self.encoder = encoder
         self._check_reduced_state(reduced_state)
 
     def _check_reduced_state(self, reduced_state: Tensor):
+        """Check if the reduced state matches the encoder properties.
+
+        :param reduced_state: time series data in the reduced state space
+        :type reduced_state: Tensor
+        :raises ValueError: if the time series data has more than two dimensions
+        :raises ValueError: if data and encoder shapes do not match
+        """
         if not len(reduced_state.shape) == 2:
             raise ValueError(
                 "The time series of reduced state vectors must have exactly 2 dimensions")
@@ -200,6 +221,13 @@ class ROM(ABC):
 
     @encoder.setter
     def encoder(self, encoder: Encoder):
+        """Set the encoder.
+
+        :param encoder: new encoder; can be also None
+        :type encoder: Encoder
+        :raises ValueError: if instance is not a subclass of `Encoder`
+        :raises ValueError: if the encoder has not been trained
+        """
         if encoder is None:
             self._encoder = encoder
         else:

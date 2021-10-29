@@ -227,6 +227,8 @@ class HDF5Writer(object):
             )
 
     def write_xdmf(self):
+        """Write XDMF wrapper to access flowTorch HDF5 files in ParaView.
+        """
         writer = XDMFWriter(self._file_path, self._file)
         writer.create_xdmf("flowtorch.xdmf")
 
@@ -299,6 +301,11 @@ Workaround:
             remove(file_path)
 
     def _convert_mesh(self, writer: HDF5Writer):
+        """Convert OpenFOAM mesh to XDMF-based structure.
+
+        :param writer: HDF5 file writer
+        :type writer: HDF5Writer
+        """
         mesh_path = self._loader._case._path + "/" + POLYMESH_PATH
         n_cells, n_points, n_top = self._gather_mesh_information(mesh_path)
         data = self._get_vertices(mesh_path, job=0)
@@ -312,7 +319,6 @@ Workaround:
 
     def _gather_mesh_information(self, mesh_path: str):
         """Gather information for parallel writing of mesh data.
-
 
         :param mesh_path: path to polyMesh folder
         :type mesh_path: str
@@ -458,6 +464,14 @@ class XDMFWriter(object):
         )
 
     def _get_n_cells(self) -> int:
+        """Determine the number of mesh cells.
+
+        The number of cells is currently determined based on the
+        cell volume dataset.
+
+        :return: number of mesh cells
+        :rtype: int
+        """
         n_cells = 0
         location = "/{:s}/{:s}".format(CONST_GROUP, VOLUMES_DS)
         if location in self._file:
@@ -467,7 +481,14 @@ class XDMFWriter(object):
         return n_cells
 
     def _add_grid(self, time: str, offset: str = "") -> str:
-        """
+        """Create XDMF grid element.
+
+        :param time: snapshot write time
+        :type time: str
+        :param offset: number of spaces for indentation, defaults to ""
+        :type offset: str, optional
+        :return: XDMF grid element
+        :rtype: str
         """
         grid = offset + "<Grid Name=\"Grid\" GridType=\"Uniform\">\n"
         grid += self._add_topology(offset + " "*4)
@@ -480,6 +501,16 @@ class XDMFWriter(object):
         return grid
 
     def _find_attributes(self, time: str) -> List[str]:
+        """Find potential XDMF attributes in HDF5 file.
+
+        A dataset is considered as XDMF attribute if the number
+        of elements matches the number of cells in the mesh.
+
+        :param time: snapshot write time
+        :type time: str
+        :return: list of attributes to write in XDMF file
+        :rtype: List[str]
+        """
         location = "/{:s}/{:s}".format(VAR_GROUP, time)
         keys = self._file[location].keys()
         valid_attr = []
@@ -491,6 +522,13 @@ class XDMFWriter(object):
         return valid_attr
 
     def _add_topology(self, offset: str = "") -> str:
+        """Create XDMF topology element.
+
+        :param offset: number of spaces for indentation, defaults to ""
+        :type offset: str, optional
+        :return: XDMF topology element
+        :rtype: str
+        """
         topology = offset + \
             "<Topology Name=\"{:s}\" TopologyType=\"Mixed\">\n".format(
                 TOPOLOGY)
@@ -501,6 +539,13 @@ class XDMFWriter(object):
         return topology
 
     def _add_geometry(self, offset: str = "") -> str:
+        """Create XDMF geometry element.
+
+        :param offset: number of spaces for indentation, defaults to ""
+        :type offset: str, optional
+        :return: XDMF geometry element
+        :rtype: str
+        """
         geometry = offset + "<Geometry GeometryType=\"XYZ\">\n"
         location = self._hdf5_filename + \
             ":/{:s}/{:s}".format(CONST_GROUP, VERTICES_DS)
@@ -509,6 +554,17 @@ class XDMFWriter(object):
         return geometry
 
     def _add_attribute(self, time: str, name: str, offset: str = "") -> str:
+        """Create XDMF attribute element.
+
+        :param time: snapshot write time
+        :type time: str
+        :param name: name of the attribute
+        :type name: str
+        :param offset: number of spaces for indentation, defaults to ""
+        :type offset: str, optional
+        :return: XDMF attribute element
+        :rtype: str
+        """
         location = self._hdf5_filename + ":/{:s}/{:s}/{:s}".format(
             VAR_GROUP, time, name
         )
@@ -522,6 +578,15 @@ class XDMFWriter(object):
         return attribute
 
     def _add_dataitem(self, location: str,  offset: str = "") -> str:
+        """Create XDMF dataitem element.
+
+        :param location: location of dataset in the HDF5 file
+        :type location: str
+        :param offset: number of spaces for indentation, defaults to ""
+        :type offset: str, optional
+        :return: XDMF dataitem element
+        :rtype: str
+        """
         path_in_file = location.split(":")[-1]
         shape = self._file[path_in_file].shape
         dimensions = " ".join(["{:d}".format(i) for i in shape])
@@ -536,10 +601,10 @@ class XDMFWriter(object):
         return dataitem
 
     def create_xdmf(self, filename: str = None):
-        """
+        """Create XDMF wrapper to access flowTorch HDF5 file in ParaView.
 
-        :param filename: [description]
-        :type filename: [type]
+        :param filename: name of the XDMF file, defaults to None
+        :type filename: str, optional
         """
         xdmf_str = XDMF_HEADER
         times = list(self._file[VAR_GROUP].keys())

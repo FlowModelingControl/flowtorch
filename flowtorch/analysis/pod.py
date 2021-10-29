@@ -5,16 +5,12 @@ import torch as pt
 
 class POD():
     """Implementation of proper orthogonal decomposition (PCA).
-
-    The PCA is implemented using PyTorch as backend.
-
-    
     """
-    def __init__(self, data):
+    def __init__(self, data: pt.Tensor):
         """Constructor method of the :class:`PCA` class.
 
-        :param data: [description]
-        :type data: [type]
+        :param data: snapshot data matrix
+        :type data: pt.Tensor
         """        
         self._data = data
 

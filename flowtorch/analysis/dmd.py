@@ -131,6 +131,11 @@ class DMD(object):
 
     @property
     def reconstruction(self) -> pt.Tensor:
+        """Reconstruct an approximation of the training data.
+
+        :return: reconstructed training data
+        :rtype: pt.Tensor
+        """
         if self._dm.dtype in (pt.complex64, pt.complex32):
             return (self._modes @ self.dynamics).type(self._dm.dtype)
         else:

@@ -35,6 +35,13 @@ class PSPExplorer(object):
         return {"x": 1.0, "y": dy/dx, "z": dz/dx}
 
     def _create_time_slider(self, times: List[str]) -> dict:
+        """Create a time slider to select snapshots.
+
+        :param times: list of write times
+        :type times: List[str]
+        :return: slider dictionary
+        :rtype: dict
+        """
         steps = []
         for i in range(len(times)):
             step = dict(
@@ -84,6 +91,28 @@ class PSPExplorer(object):
     def interact(self, zone: str, field_name: str, times: list,
                  mask: bool = True, width: int = 1024, every: int = 5,
                  cmin: float = -2, cmax: float = 0.5) -> go.Figure:
+        """Show selected snapshots of an iPSP file as interactive surface plot.
+
+        :param zone: name of the zone to display
+        :type zone: str
+        :param field_name: name of the field to display
+        :type field_name: str
+        :param times: list of times instances to show
+        :type times: list
+        :param mask: if True, the data is masked using the mask provided
+            in the iPSP dataset, defaults to True
+        :type mask: bool, optional
+        :param width: width of the plot, defaults to 1024
+        :type width: int, optional
+        :param every: plot only every nth point, defaults to 5
+        :type every: int, optional
+        :param cmin: lower bound for color range, defaults to -2
+        :type cmin: float, optional
+        :param cmax: upper bound for color range, defaults to 0.5
+        :type cmax: float, optional
+        :return: interactive iPSP surface plot
+        :rtype: go.Figure
+        """
         self._loader.zone = zone
         vertices = self._loader.vertices
         weights = self._loader.weights
@@ -102,6 +131,29 @@ class PSPExplorer(object):
     def mean(self, zone: str, field_name: str, times: list,
              mask: bool = True, width: int = 1024, every=5,
              cmin: float = -2, cmax: float = 0.5) -> go.Figure:
+        """Show temporal mean of an iPSP file as interactive surface plot.
+
+        :param zone: name of the zone to display
+        :type zone: str
+        :param field_name: name of the field to display
+        :type field_name: str
+        :param times: snapshot times over which to compute the mean
+        :type times: list
+        :param mask: if True, the data is masked using the mask provided
+            in the iPSP dataset, defaults to True
+        :type mask: bool, optional
+        :param width: width of the plot, defaults to 1024
+        :type width: int, optional
+        :param every: use only every nth point for plotting,
+            defaults to 5
+        :type every: int, optional
+        :param cmin: lower bound for color range, defaults to -2
+        :type cmin: float, optional
+        :param cmax: upper bound for color range, defaults to 0.5
+        :type cmax: float, optional
+        :return: interactive iPSP surface plot showing the temporal mean
+        :rtype: go.Figure
+        """
         self._loader.zone = zone
         vertices = self._loader.vertices
         weights = self._loader.weights
@@ -119,6 +171,30 @@ class PSPExplorer(object):
     def std(self, zone: str, field_name: str, times: list,
             mask: bool = True, width: int = 1024, every=5,
             cmin: float = 0, cmax: float = 0.5) -> go.Figure:
+        """Show temporal standard deviation as interactive surface plot.
+
+        :param zone: name of the zone to display
+        :type zone: str
+        :param field_name: name of the field to display
+        :type field_name: str
+        :param times: snapshot times over which to compute the standard
+            deviation
+        :type times: list
+        :param mask: if True, the data is masked using the mask provided
+            in the iPSP dataset, defaults to True
+        :type mask: bool, optional
+        :param width: width of the plot, defaults to 1024
+        :type width: int, optional
+        :param every: use only every nth point for plotting,
+            defaults to 5
+        :type every: int, optional
+        :param cmin: lower bound for color range, defaults to -2
+        :type cmin: float, optional
+        :param cmax: upper bound for color range, defaults to 0.5
+        :type cmax: float, optional
+        :return: interactive iPSP surface plot
+        :rtype: go.Figure
+        """
         self._loader.zone = zone
         vertices = self._loader.vertices
         weights = self._loader.weights
@@ -135,4 +211,12 @@ class PSPExplorer(object):
 
     @property
     def loader(self) -> PSPDataloader:
+        """Get the `PSPdataloader` instance used to access data.
+
+        This propertie allows accessing the loader's metadata via
+        the explorer without having to create a new loader instance.
+
+        :return: PSP dataloader instance
+        :rtype: PSPDataloader
+        """
         return self._loader
