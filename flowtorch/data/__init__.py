@@ -5,3 +5,4 @@ from .vtk_dataloader import VTKDataloader
 from .psp_dataloader import PSPDataloader
 from .tau_dataloader import TAUDataloader
 from .selection_tools import mask_box, mask_sphere
+from .outlier_tools import iqr_outlier_replacement
