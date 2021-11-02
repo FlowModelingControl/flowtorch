@@ -35,5 +35,8 @@ def test_DMD():
     parital = dmd.partial_reconstruction({0, 2})
     assert partial.dtype == data.dtype
     assert partial.shape == data.shape
+    # robust DMD
+    dmd = DMD(data, dt=0.1, rank=rank, robust=True)
+    assert dmd.svd.L.shape == (data.shape[0], rank+1)
 
 

@@ -107,9 +107,9 @@ class SVD(object):
     :type L: pt.Tensor
     :param S: sparse contribution to data matrix
     :type S: pt.Tensor
-    :param robust: data_matrix is split in to low rank and sparse contributions
+    :param robust: data_matrix is split into low rank and sparse contributions
         if True or if dictionary with options for Inexact ALM algorithm; the SVD
-        is computed only on the low rank matrix
+        is computed only on the low rank matrix; defaults to False
     :type robust: Union[bool,dict]
     :param rank: rank used for truncation
     :type rank: int
@@ -147,7 +147,7 @@ class SVD(object):
     """
 
     def __init__(self, data_matrix: pt.Tensor, rank: int = None,
-                 robust: Union[bool, dict]=False):
+                 robust: Union[bool, dict] = False):
         shape = data_matrix.shape
         assert len(shape) == 2, (
             f"The data matrix must be a 2D tensor.\
