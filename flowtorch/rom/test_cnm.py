@@ -130,3 +130,8 @@ class TestCNM():
         assert prediction.shape == (cnm.encoder.state_shape[0], 4)
         prediction = cnm.predict(self.data[:, 0], 3.0, 1.0)
         assert prediction.shape == (cnm.encoder.state_shape[0], 4)
+
+    def test_encode_none(self):
+        data = pt.rand((2, 20))
+        cnm = CNM(data, None, 1)
+        prediction = cnm.predict(data[:, :1], 10, 1)

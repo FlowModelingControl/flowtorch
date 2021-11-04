@@ -299,9 +299,12 @@ class CNM(ROM):
                              "to interpolate a trajectory")
         times = np.arange(
             self.times[0], self.times[-1]+0.5*step_size, step_size)
-        prediction = pt.empty((self.encoder.reduced_state_size, times.size),
-                              dtype=self._dtype)
-        for dim in range(self.encoder.reduced_state_size):
+        if self.encoder is None:
+            state_size = self.cluster_centers.shape[-1]
+        else:
+            state_size = self.encoder.reduced_state_size
+        prediction = pt.empty((state_size, times.size), dtype=self._dtype)
+        for dim in range(state_size):
             spline = InterpolatedUnivariateSpline(
                 self._times, self.cluster_centers[self.visited_clusters][:, dim],
                 k=min(3, len(self.times)-1)
