@@ -39,13 +39,17 @@ def iqr_outlier_replacement(data: pt.Tensor, k: float = 1.5, nb: int = 3,
     outlier_indices = pt.logical_or(
         outliers_low, outliers_high).nonzero(as_tuple=True)
     clean_data = data.clone().detach()
-    print(f"Detected {outlier_indices[0].shape[0]} outliers.")
+    print("Detected {:d} outliers ({:3.2f}%).".format(
+        outlier_indices[0].shape[0],
+        outlier_indices[0].shape[0] / (data.shape[0]*data.shape[1]) * 100
+    ))
     if outlier_indices[0].shape[0] == 0:
         print("Nothing to do ...")
     else:
         print("Start to replace outliers ...")
     for row, col in zip(*outlier_indices):
         i, j = row.item(), col.item()
-        clean_data[i, j] = replace(data[i, max(0, j-nb):min(shape[-1], j+nb+1)])
+        clean_data[i, j] = replace(
+            data[i, max(0, j-nb):min(shape[-1], j+nb+1)])
     data = data.reshape(initial_shape)
     return clean_data.reshape(initial_shape)
