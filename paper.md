@@ -70,7 +70,7 @@ more details, essential information may not be accessible due to black-box (clos
 
 With `flowTorch`, we attempt to make analysis and modeling workflows accessible, streamlined, and transparent in several ways:
 
-- we provide Jupyter labs with start-to-end workflows, including short explanations for each step taken in the process; the notebooks' content varies from
+- we provide Jupyter notebooks with start-to-end workflows, including short explanations for each step taken in the process; the notebooks' content varies from
 toy examples through common benchmark problems to the analysis of real turbulent flow data; the datasets used in the notebooks are also part of
 the library
 - the library is modular and often wraps around other libraries to make them easier to use; a few lines of Python code are sufficient to implement
@@ -80,7 +80,7 @@ Ultimately, our goal is to reduce redundant work as much as possible and enable 
 
 # Examples
 
-In this section, we demonstrate two applications of `flowTorch`. In the first example, DMD is employed to identify relevant modes in a transonic flow displaying shock-boundary-layer interactions. In the second example, a ROM of the flow past a circular cylinder [@noack2003] is constructed employing CNM [@fernex2021]. Both examples are also available as Jupyter labs and in the `flowTorch` documentation.
+In this section, we demonstrate two applications of `flowTorch`. In the first example, DMD is employed to identify relevant modes in a transonic flow displaying shock-boundary-layer interactions. In the second example, a ROM of the flow past a circular cylinder [@noack2003] is constructed employing CNM [@fernex2021]. Both examples are also available as Jupyter notebooks and in the `flowTorch` documentation.
 
 ## DMD analysis of airfoil surface data
 
