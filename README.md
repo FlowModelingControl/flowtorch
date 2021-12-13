@@ -151,7 +151,7 @@ If you encounter any issues using *flowTorch* or if you have any questions regar
 
 ## Reference
 
-If *flowTorch* aids your work, you may support our work by referencing following software article:
+If *flowTorch* aids your work, you may support our work by referencing the following software article:
 ```
 @article{Weiner2021,
   doi = {10.21105/joss.03860},
