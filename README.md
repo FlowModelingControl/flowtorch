@@ -2,6 +2,8 @@
 
 # flowTorch
 
+[![status](https://joss.theoj.org/papers/57b32d31997c90a40b3f4bdc20782e55/status.svg)](https://joss.theoj.org/papers/57b32d31997c90a40b3f4bdc20782e55)
+
 **flowTorch** - a Python library for analysis and reduced order modeling of fluid flows
 
 *flowTorch* is developed primarily by [@AndreWeiner](https://github.com/AndreWeiner) in the [Flow Modeling and Control group](https://www.tu-braunschweig.de/en/ism/research-workgroups/flow-modelling-and-control) led by [Richard Semaan](https://www.tu-braunschweig.de/en/ism/research/flow-modelling-and-control/staff/semaan). The development is financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.for2895.uni-stuttgart.de/)
@@ -149,7 +151,21 @@ If you encounter any issues using *flowTorch* or if you have any questions regar
 
 ## Reference
 
-If *flowTorch* aids your work, you may support our work by referencing this repository.
+If *flowTorch* aids your work, you may support our work by referencing following software article:
+```
+@article{Weiner2021,
+  doi = {10.21105/joss.03860},
+  url = {https://doi.org/10.21105/joss.03860},
+  year = {2021},
+  publisher = {The Open Journal},
+  volume = {6},
+  number = {68},
+  pages = {3860},
+  author = {Andre Weiner and Richard Semaan},
+  title = {flowTorch - a Python library for analysis and reduced-order modeling of fluid flows},
+  journal = {Journal of Open Source Software}
+}
+```
 
 ## License
 
