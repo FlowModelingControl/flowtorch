@@ -58,7 +58,6 @@ def test_from_davis():
     assert times[-1] == "05000"
     fields = loader.field_names
     fields = fields[times[0]]
-    assert len(fields) == 3
     n_points = 3741
     vertices = loader.vertices
     # DaVis files have only x and y component
@@ -73,13 +72,13 @@ def test_from_davis():
     assert snapshots.shape == (n_points, 10)
     assert pt.allclose(snapshot, snapshots[:, 0])
     # single snapshot, multiple fields
-    snapshot = loader.load_snapshot(fields, times[0])
+    snapshot = loader.load_snapshot(fields[:3], times[0])
     assert len(snapshot) == 3
     assert snapshot[0].shape == (n_points,)
     assert snapshot[1].shape == (n_points,)
     assert snapshot[2].shape == (n_points,)
     # multiple snapshots, multiple fields
-    snapshots = loader.load_snapshot(fields, times[:10])
+    snapshots = loader.load_snapshot(fields[:3], times[:10])
     assert len(snapshots) == 3
     assert snapshots[0].shape == (n_points, 10)
     assert snapshots[1].shape == (n_points, 10)
