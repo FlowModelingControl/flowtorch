@@ -256,21 +256,28 @@ class FOAM2HDF5(object):
         :param dtype: tensor type, defaults to DEFAULT_DTYPE
         :type dtype: str, optional
         """
-        self._loader = FOAMDataloader(path, dtype)
+        self._loader = FOAMDataloader(path, dtype, False)
         self._dtype = dtype
         self._topology = None
         self._mesh_points = None
 
-    def convert(self, filename: str, skip_zero: bool = True):
+    def convert(self, filename: str, fields: List[str] = None,
+                times: List[str] = None):
         """Convert OpenFOAM case to flowTorch HDF5 file.
 
         :param filename: name of the HDF5 file
         :type filename: str
-        :param skip_zero: skip zero folder if true; defaults to True
-        :type skip_zero: bool, optional
+        :param fields: list of fields to convert; if None, all available
+            fields are converted
+        :type fields: List[str], optional
+        :param times: list of times to convert; if None, all available
+            times are converted
+        :type times: List[str], optional
         """
         file_path = self._loader._case._path + "/" + filename
         self._remove_file_if_present(file_path)
+        # this is currently redundant since the loader is initialized
+        # with distributed set to False
         if self._loader._case._distributed:
             message = """The direct conversion of distributed cases is currently not supported.\n
 Workaround:
@@ -286,7 +293,7 @@ Workaround:
             print("Converting mesh.")
             self._convert_mesh(writer)
             print("Converting fields.")
-            self._convert_fields(writer, skip_zero)
+            self._convert_fields(writer, fields, times)
             print("Conversion finished. Writing XDMF file.")
             writer.write_xdmf()
 
@@ -369,22 +376,28 @@ Workaround:
     def _get_cell_volumes(self, job: int = 0):
         return self._loader._mesh.get_cell_volumes()
 
-    def _convert_fields(self, writer: HDF5Writer, skip_zero: bool):
+    def _convert_fields(self, writer: HDF5Writer, fields: List[str],
+                        times: List[str]):
         """Convert convert OpenFOAM fields to HDF5.
 
         :param writer: HDF5 writer
         :type writer: :class:`HDF5Writer`
-        :param skip_zero: skip zero folder if true
-        :type skip_zero: bool
+        :param fields: list of fields to convert; if None, all available
+            fields are converted
+        :type fields: List[str]
+        :param times: list of times to convert; if None, all available
+            times are converted
+        :type times: List[str]
         """
-        field_info = self._gather_field_information(skip_zero)
+        field_info = self._gather_field_information(fields, times)
         for job, info in enumerate(field_info):
             print(
                 f"Converting field {info[0]} at time {info[1]}, dimension {info[2]}")
             data = self._load_field(*info[:2], job=job)
             writer.write(info[0], info[2], data, info[1])
 
-    def _gather_field_information(self, skip_zero: bool) -> List[list]:
+    def _gather_field_information(self, fields: List[str], times: List[str]
+                                  ) -> List[tuple]:
         """Gather field information for parallel writing.
 
         - check if field type is supported
@@ -392,9 +405,9 @@ Workaround:
 
         :param skip_zero: skip zero folder if true
         :type skip_zero: bool
-        :return: list of all fields; each list element is a list
-            with the entries [name, time, shape]
-        :rtype: list
+        :return: list of all fields; each list element is a tuple
+            with the entries (name, time, shape)
+        :rtype: List[tuple]
         """
         def load_n_lines(file_name, n):
             lines = []
@@ -406,17 +419,20 @@ Workaround:
         field_info = []
         mesh_path = self._loader._case._path + "/" + POLYMESH_PATH
         n_cells = self._loader._mesh._get_n_cells(mesh_path)
-        all_fields = self._loader.field_names
-        if skip_zero and "0" in all_fields.keys():
-            del all_fields["0"]
-        for time in all_fields.keys():
-            for name in all_fields[time]:
+        times_to_convert = self._loader.write_times
+        if times is not None:
+            times_to_convert = [t for t in times if t in times_to_convert]
+        for time in times_to_convert:
+            fields_to_convert = self._loader.field_names[time]
+            if fields is not None:
+                fields_to_convert = [field for field in fields if field in fields_to_convert]
+            for name in fields_to_convert:
                 path = self._loader._case.build_file_path(name, time)
                 header = load_n_lines(path, MAX_LINE_HEADER)
                 field_type = self._loader._field_type(header)
                 if field_type in FIELD_TYPE_DIMENSION.keys():
                     field_info.append(
-                        [name, time, (n_cells, FIELD_TYPE_DIMENSION[field_type])])
+                        (name, time, (n_cells, FIELD_TYPE_DIMENSION[field_type])))
         return field_info
 
     def _load_field(self, field: str, time: str, job: int = 0) -> pt.Tensor:

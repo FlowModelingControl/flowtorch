@@ -157,6 +157,9 @@ class TestFOAMCase:
             case = FOAMCase(get_test_data.paths[key])
             distributed = get_test_data.distributed[key]
             assert distributed == case._distributed
+        for key in get_test_data.distributed.keys():
+            case = FOAMCase(get_test_data.paths[key], False)
+            assert case._distributed == False
 
     def test_processors(self, get_test_data):
         for key in get_test_data.paths.keys():

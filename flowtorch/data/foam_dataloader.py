@@ -73,16 +73,21 @@ class FOAMDataloader(Dataloader):
 
     """
 
-    def __init__(self, path: str, dtype: str = DEFAULT_DTYPE):
+    def __init__(self, path: str, dtype: str = DEFAULT_DTYPE,
+                 distributed: bool = None):
         """Create a FOAMDataloader instance from a path.
 
         :param path: path to an OpenFOAM simulation folder.
         :type path: str
         :param dtype: tensor type; default is single precision, `torch.float32`
         :type dtype: str
+        :param distributed: case is considered distributed if True; if None,
+            the case type (parallel/serial) is determined automatically;
+            defaults to None
+        :type distributed: bool 
 
         """
-        self._case = FOAMCase(path)
+        self._case = FOAMCase(path, distributed)
         self._mesh = FOAMMesh(self._case)
         self._dtype = dtype
 
@@ -320,15 +325,21 @@ class FOAMCase(object):
     .. automethod:: _eval_field_names
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, distributed: bool = None):
         """Create a `FOAMCase` instance based on a path.
 
         :param path: path to OpenFOAM simulation case
         :type path: str
+        :param distributed: case is considered distributed if True; if None,
+            the presence of processor folders is checked to evaluate the
+            parameter; defaults to False
+        :type distributed: bool
 
         """
         self._path = check_and_standardize_path(path)
-        self._distributed = self._eval_distributed()
+
+        self._distributed = distributed if distributed is not None \
+            else self._eval_distributed()
         self._processors = self._eval_processors()
         self._time_folders = self._eval_write_times()
         self._field_names = self._eval_field_names()
@@ -904,7 +915,7 @@ class FOAMMesh(object):
         :return: tuple of two tensors; the first one holds the cell centers and
             the second one holds the cell volumes
         :rtype: Tuple[pt.Tensor, pt.Tensor]
-        
+
         """
         points = self._parse_points(mesh_path)
         n_points_faces, faces = self._parse_faces(mesh_path)
