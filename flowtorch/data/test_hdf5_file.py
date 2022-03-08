@@ -7,7 +7,8 @@ import torch as pt
 from h5py import File
 # flowtorch packages
 from flowtorch import DATASET_PATH, DATASETS
-from flowtorch.data import HDF5Dataloader, HDF5Writer, FOAM2HDF5, XDMFWriter
+from flowtorch.data import (HDF5Dataloader, HDF5Writer, FOAM2HDF5,
+                            XDMFWriter, copy_hdf5_mesh)
 
 
 class HDF5TestData:
@@ -144,3 +145,24 @@ def test_hdf5_dataloader():
     assert pt.allclose(Us[:, :, 0], U)
     os.remove(file_path)
     os.remove(path + "/flowtorch.xdmf")
+
+
+def test_copy_hdf5_mesh(get_test_data):
+    for case in get_test_data.test_cases[:2]:
+        case_path = DATASET_PATH + case
+        converter = FOAM2HDF5(case_path)
+        converter.convert("flowtorch.hdf5", ["U"], ["0.1", "0.2"])
+        del converter
+        if os.path.isfile(os.path.join(case_path, "flowtorch.hdf5")):
+            copy_hdf5_mesh(case_path, "flowtorch.hdf5", "mesh_only.hdf5")
+            assert os.path.isfile(os.path.join(case_path, "mesh_only.hdf5"))
+            assert os.path.isfile(os.path.join(case_path, "mesh_only.xdmf"))
+            hdf5_file = File(os.path.join(
+                case_path, "mesh_only.hdf5"), mode="a")
+            assert hdf5_file["constant/volumes"].shape[0] == 400
+            assert hdf5_file["constant/centers"].shape == (400, 3)
+            assert "constant/vertices" in hdf5_file
+            assert "constant/connectivity" in hdf5_file
+            hdf5_file.close()
+            for f in ("flowtorch.hdf5", "flowtorch.xdmf", "mesh_only.hdf5", "mesh_only.xdmf"):
+                os.remove(os.path.join(case_path, f))

@@ -9,7 +9,7 @@ of reconstructed OpenFOAM simulation cases into the HDF5-based flowTorch format.
 """
 
 # standard library packages
-from os.path import isfile, exists
+from os.path import isfile, exists, join
 from os import remove
 from typing import List, Tuple, Dict, Union
 import sys
@@ -20,7 +20,7 @@ from h5py import File
 from flowtorch import DEFAULT_DTYPE
 from .dataloader import Dataloader
 from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
-from .utils import check_list_or_str
+from .utils import check_list_or_str, check_and_standardize_path
 
 
 CONST_GROUP = "constant"
@@ -148,6 +148,18 @@ class HDF5Dataloader(Dataloader):
             self._file[f"{CONST_GROUP}/{VOLUMES_DS}"][:], dtype=self._dtype
         )
 
+    @property
+    def connectivity(self) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{CONST_GROUP}/{CONNECTIVITY_DS}"][:], dtype=self._dtype
+        )
+
+    @property
+    def edge_vertices(self) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{CONST_GROUP}/{VERTICES_DS}"][:], dtype=self._dtype
+        )
+
 
 class HDF5Writer(object):
     """Class to write flowTorch data to HDF5 file.
@@ -244,7 +256,7 @@ class FOAM2HDF5(object):
     >>> from flowtorch import DATASETS
     >>> from flowtorch.data import FOAM2HDF5
     >>> converter = FOAM2HDF5(DATASETS["of_cavity_ascii"])
-    >>> converter.convert("cavity.hdf5", skip_zero=True)
+    >>> converter.convert("cavity.hdf5", ["U", "p"], ["0.1", "0.2", "0.3"])
 
     """
 
@@ -425,7 +437,8 @@ Workaround:
         for time in times_to_convert:
             fields_to_convert = self._loader.field_names[time]
             if fields is not None:
-                fields_to_convert = [field for field in fields if field in fields_to_convert]
+                fields_to_convert = [
+                    field for field in fields if field in fields_to_convert]
             for name in fields_to_convert:
                 path = self._loader._case.build_file_path(name, time)
                 header = load_n_lines(path, MAX_LINE_HEADER)
@@ -453,7 +466,7 @@ class XDMFWriter(object):
     def __init__(self, file_path: str, hdf5_file: File):
         """Create XDMFWriter instance from path and file.
 
-        :param file_path: path to DHF5 file
+        :param file_path: path to HDF5 file
         :type file_path: str
         :param hdf5_file: HDF5 file instance
         :type hdf5_file: File
@@ -623,7 +636,8 @@ class XDMFWriter(object):
         :type filename: str, optional
         """
         xdmf_str = XDMF_HEADER
-        times = list(self._file[VAR_GROUP].keys())
+        times = list(self._file[VAR_GROUP].keys()
+                     ) if VAR_GROUP in self._file else []
         if len(times) > 0:
             for time in times:
                 xdmf_str += self._add_grid(time, " "*12)
@@ -645,3 +659,37 @@ class XDMFWriter(object):
         )
         with open(self._path + "/" + filename, "w") as file:
             file.write(xdmf_str)
+
+
+def copy_hdf5_mesh(path: str, from_file: str, to_file: str):
+    """Create a copy of an flowTorch hdf5 file containing only the mesh.
+
+    Sometimes, it is helpul to create a new copy of an existing hdf5 file
+    that contains only the mesh, e.g., to create a separate file for
+    POD or DMD modes.
+
+    :param path: location of the flowtorch hdf5 file exclusing the filename
+    :type path: str
+    :param from_file: name of the file from which to copy the mesh
+    :type from_file: str
+    :param to_file: name of the file to which to copy the mesh
+    :type to_file: str
+    """
+    path = check_and_standardize_path(path)
+    from_file_path = join(path, from_file)
+    loader = HDF5Dataloader(from_file_path)
+    to_file_path = join(path, to_file)
+    print(f"Copying mesh from file {from_file_path} to {to_file_path}")
+    writer = HDF5Writer(to_file_path)
+    datasets = {
+        VERTICES_DS: loader.edge_vertices,
+        CENTERS_DS: loader.vertices,
+        VOLUMES_DS: loader.weights,
+        CONNECTIVITY_DS: loader.connectivity
+    }
+    for ds_key in datasets.keys():
+        data = datasets[ds_key]
+        writer.write(ds_key, data.shape, data, None, data.dtype)
+    xdmf_name = f"{to_file.split('.')[0]}.xdmf"
+    xdmf = XDMFWriter.from_filepath(to_file_path)
+    xdmf.create_xdmf(xdmf_name)
