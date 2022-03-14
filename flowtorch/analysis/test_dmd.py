@@ -38,5 +38,13 @@ def test_DMD():
     # robust DMD
     dmd = DMD(data, dt=0.1, rank=rank, robust=True)
     assert dmd.svd.L.shape == (data.shape[0], rank+1)
+    # unitary operator
+    dmd = DMD(data, dt=0.1, rank=rank, unitary=True)
+    operator = dmd.operator
+    shape = operator.shape
+    assert shape == (rank, rank)
+    diag = operator.conj().T @ operator
+    assert pt.allclose(diag, pt.diag(pt.ones(rank)), atol=1e-6)
+
 
 

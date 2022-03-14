@@ -38,7 +38,7 @@ class DMD(object):
     """
 
     def __init__(self, data_matrix: pt.Tensor, dt: float, rank: int = None,
-                 robust: Union[bool, dict] = False):
+                 robust: Union[bool, dict] = False, unitary: bool = False):
         """Create DMD instance based on data matrix and time step. 
 
         :param data_matrix: data matrix whose columns are formed by the individual snapshots
@@ -51,22 +51,36 @@ class DMD(object):
             if True or if dictionary with options for Inexact ALM algorithm; the SVD
             is computed only on the low rank matrix
         :type robust: Union[bool,dict]
+        :param unitary: enforce the linear operator to be unitary; refer to piDMD_
+            by Peter Baddoo for more information
+        :type unitary: bool
+
+        .. _piDMD: https://github.com/baddoo/piDMD
         """
         self._dm = data_matrix
         self._dt = dt
+        self._unitary = unitary
         self._svd = SVD(self._dm[:, :-1], rank, robust)
         self._eigvals, self._eigvecs, self._modes = self._compute_mode_decomposition()
+
+    def _compute_operator(self):
+        """Compute the approximate linear (DMD) operator.
+        """
+        if self._unitary:
+            Xp = self._svd.U.conj().T @ self._dm[:, :-1]
+            Yp = self._svd.U.conj().T @ self._dm[:, 1:]
+            U, _, VT = pt.linalg.svd(Yp @ Xp.conj().T, full_matrices=False)
+            return U @ VT
+        else:
+            s_inv = pt.diag(1.0 / self._svd.s)
+            return self._svd.U.conj().T @ self._dm[:, 1:] @ self._svd.V @ s_inv
 
     def _compute_mode_decomposition(self):
         """Compute reduced operator, eigen decomposition, and DMD modes.
         """
         s_inv = pt.diag(1.0 / self._svd.s)
-        operator = (
-            self._svd.U.conj().T @ self._dm[:, 1:] @ self._svd.V @ s_inv
-        )
+        operator = self._compute_operator()
         val, vec = pt.linalg.eig(operator)
-        # type conversion is currently not implemented for pt.complex32
-        # such that the dtype for the modes is always pt.complex64
         phi = (
             self._dm[:, 1:].type(val.dtype) @ self._svd.V.type(val.dtype)
             @ s_inv.type(val.dtype) @ vec
@@ -107,6 +121,10 @@ class DMD(object):
     @property
     def svd(self) -> SVD:
         return self._svd
+
+    @property
+    def operator(self) -> pt.Tensor:
+        return self._compute_operator()
 
     @property
     def modes(self) -> pt.Tensor:
