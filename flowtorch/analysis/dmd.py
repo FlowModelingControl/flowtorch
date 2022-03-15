@@ -108,7 +108,8 @@ class DMD(object):
             vander = pt.vander(self.eigvals, self._dm.shape[-1], True)
             P = (self.modes.conj().T @ self.modes) * \
                 (vander @ vander.conj().T).conj()
-            q = (vander @ self._dm.type(P.dtype).conj().T @ self.modes).conj()
+            q = pt.diag(vander @ self._dm.type(P.dtype).conj().T @
+                        self.modes).conj()
         else:
             P = self._modes
             q = self._dm[:, 0].type(P.dtype)
@@ -175,7 +176,7 @@ class DMD(object):
 
     @property
     def amplitude(self) -> pt.Tensor:
-        return pt.linalg.pinv(self._modes) @ self._dm[:, 0].type(self._modes.dtype)
+        return self._amplitude
 
     @property
     def dynamics(self) -> pt.Tensor:
