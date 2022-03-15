@@ -45,6 +45,12 @@ def test_DMD():
     assert shape == (rank, rank)
     diag = operator.conj().T @ operator
     assert pt.allclose(diag, pt.diag(pt.ones(rank)), atol=1e-6)
+    # optimal mode amplitudes
+    dmd = DMD(data, dt=0.1, rank=rank, optimal=True)
+    dmd = DMD(data, dt=0.1, rank=rank, unitary=True, optimal=True)
+    assert dmd.amplitude.shape == (rank,)
+    assert dmd.amplitude.dtype == pt.complex64
+
 
 
 

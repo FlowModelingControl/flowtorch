@@ -38,7 +38,8 @@ class DMD(object):
     """
 
     def __init__(self, data_matrix: pt.Tensor, dt: float, rank: int = None,
-                 robust: Union[bool, dict] = False, unitary: bool = False):
+                 robust: Union[bool, dict] = False, unitary: bool = False,
+                 optimal: bool = False):
         """Create DMD instance based on data matrix and time step. 
 
         :param data_matrix: data matrix whose columns are formed by the individual snapshots
@@ -54,14 +55,22 @@ class DMD(object):
         :param unitary: enforce the linear operator to be unitary; refer to piDMD_
             by Peter Baddoo for more information
         :type unitary: bool
+        :param optimal: compute mode amplitudes based on a least-squares problem
+            as described in spDMD_ article by M. Janovic et al. (2014); in contrast
+            to the original spDMD implementation, the exact DMD modes are used in
+            the optimization problem as outlined in an article_ by R. Taylor
 
         .. _piDMD: https://github.com/baddoo/piDMD
+        .. _spDMD: https://hal-polytechnique.archives-ouvertes.fr/hal-00995141/document
+        .. _article: http://www.pyrunner.com/weblog/2016/08/03/spdmd-python/
         """
         self._dm = data_matrix
         self._dt = dt
         self._unitary = unitary
+        self._optimal = optimal
         self._svd = SVD(self._dm[:, :-1], rank, robust)
         self._eigvals, self._eigvecs, self._modes = self._compute_mode_decomposition()
+        self._amplitude = self._compute_amplitudes()
 
     def _compute_operator(self):
         """Compute the approximate linear (DMD) operator.
@@ -86,6 +95,24 @@ class DMD(object):
             @ s_inv.type(val.dtype) @ vec
         )
         return val, vec, phi
+
+    def _compute_amplitudes(self):
+        """Compute amplitudes for exact DMD modes.
+
+        If *optimal* is False, the amplitudes are computed based on the first
+        snapshot in the data matrix; otherwise, a least-squares problem as
+        introduced by Janovic et al. is solved (refer to the documentation
+        in the constructor for more information).
+        """
+        if self._optimal:
+            vander = pt.vander(self.eigvals, self._dm.shape[-1], True)
+            P = (self.modes.conj().T @ self.modes) * \
+                (vander @ vander.conj().T).conj()
+            q = (vander @ self._dm.type(P.dtype).conj().T @ self.modes).conj()
+        else:
+            P = self._modes
+            q = self._dm[:, 0].type(P.dtype)
+        return pt.linalg.lstsq(P, q).solution
 
     def partial_reconstruction(self, mode_indices: Set[int]) -> pt.Tensor:
         """Reconstruct data matrix with limited number of modes.
