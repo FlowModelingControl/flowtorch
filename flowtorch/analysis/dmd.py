@@ -133,6 +133,25 @@ class DMD(object):
         else:
             return reconstruction.real.type(self._dm.dtype)
 
+    def top_modes(self, n: int = 10, integral: bool = False) -> pt.Tensor:
+        """Get the indices of the first n most important modes.
+
+        Note that the conjugate complex modes for real data matrices are
+        not filtered out.
+
+        :param n: number of indices to return; defaults to 10
+        :type n: int
+        :param integral: if True, the modes are sorted according to their
+            integral contribution; defaults to False
+        :type integral: bool, optional
+        :return: indices of top n modes sorted by amplitude or integral
+            contribution
+        :rtype: pt.Tensor
+        """
+        importance = self.integral_contribution if integral else self.amplitude
+        n = min(n, importance.shape[0])
+        return importance.abs().topk(n).indices
+
     @property
     def required_memory(self) -> int:
         """Compute the memory size in bytes of the DMD.
@@ -181,6 +200,14 @@ class DMD(object):
     @property
     def dynamics(self) -> pt.Tensor:
         return pt.diag(self.amplitude) @ pt.vander(self.eigvals, self._dm.shape[-1], True)
+
+    @property
+    def integral_contribution(self) -> pt.Tensor:
+        """Integral contribution of individual modes according to J. Kou et al. 2017.
+
+        DOI: https://doi.org/10.1016/j.euromechflu.2016.11.015
+        """
+        return self.modes.norm(dim=0)**2 * self.dynamics.abs().sum(dim=1)
 
     @property
     def reconstruction(self) -> pt.Tensor:
