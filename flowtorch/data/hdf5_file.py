@@ -107,21 +107,21 @@ class HDF5Dataloader(Dataloader):
         if isinstance(field_name, list):
             if isinstance(time, list):
                 return [pt.stack([pt.tensor(
-                        self._file[f"{VAR_GROUP}/{t}/{field}"][:], dtype=self._dtype
+                        self._file[f"{VAR_GROUP}/{t}/{field}"][:].copy(), dtype=self._dtype
                         ).squeeze() for t in time], dim=-1) for field in field_name]
             else:
                 return [pt.tensor(
-                        self._file[f"{VAR_GROUP}/{time}/{field}"][:], dtype=self._dtype
+                        self._file[f"{VAR_GROUP}/{time}/{field}"][:].copy(), dtype=self._dtype
                         ).squeeze() for field in field_name]
         # load single field
         else:
             if isinstance(time, list):
                 return pt.stack([pt.tensor(
-                    self._file[f"{VAR_GROUP}/{t}/{field_name}"][:], dtype=self._dtype
+                    self._file[f"{VAR_GROUP}/{t}/{field_name}"][:].copy(), dtype=self._dtype
                 ).squeeze() for t in time], dim=-1)
             else:
                 return pt.tensor(
-                    self._file[f"{VAR_GROUP}/{time}/{field_name}"][:], dtype=self._dtype
+                    self._file[f"{VAR_GROUP}/{time}/{field_name}"][:].copy(), dtype=self._dtype
                 ).squeeze()
 
     @property
