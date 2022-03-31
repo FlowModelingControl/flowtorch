@@ -41,6 +41,8 @@ def test_DMD():
     top = dmd.top_modes(10, True)
     assert top.shape == (min(rank, 10),)
     assert top.dtype == pt.int64
+    assert dmd.reconstruction_error.shape == data.shape
+    assert dmd.projection_error.shape == (data.shape[0], data.shape[1] - 1)
     # robust DMD
     dmd = DMD(data, dt=0.1, rank=rank, robust=True)
     assert dmd.svd.L.shape == (data.shape[0], rank+1)
@@ -56,6 +58,14 @@ def test_DMD():
     dmd = DMD(data, dt=0.1, rank=rank, unitary=True, optimal=True)
     assert dmd.amplitude.shape == (rank,)
     assert dmd.amplitude.dtype == pt.complex64
+    # total least-squares
+    dmd = DMD(data, dt=0.1, tlsq=True)
+    assert dmd.amplitude.dtype == pt.complex64
+    dmd = DMD(data, dt=0.1, rank=rank, optimal=True, tlsq=True)
+    assert dmd.amplitude.shape == (rank,)
+    DX, DY = dmd.tlsq_error
+    assert  DX.shape == (data.shape[0], data.shape[1] - 1)
+    assert  DY.shape == (data.shape[0], data.shape[1] - 1)
 
 
 

@@ -69,6 +69,6 @@ def remove_sequential_duplicates(sequence: np.ndarray) -> np.ndarray:
     :return: sequence without sequential duplicates
     :rtype: np.ndarray
     """
-    is_different = np.diff(sequence).astype(np.bool)
+    is_different = np.diff(sequence).astype(bool)
     return sequence[np.insert(is_different, 0, True)]
 
