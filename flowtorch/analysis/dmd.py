@@ -102,7 +102,7 @@ class DMD(object):
             return U @ VT
         else:
             s_inv = pt.diag(1.0 / self._svd.s)
-            return self._svd.U.conj().T @ self._X @ self._svd.V @ s_inv
+            return self._svd.U.conj().T @ self._Y @ self._svd.V @ s_inv
 
     def _compute_mode_decomposition(self):
         """Compute reduced operator, eigen-decomposition, and DMD modes.
