@@ -40,7 +40,7 @@ class TAUDataloader(Dataloader):
     >>> from flowtorch import DATASETS
     >>> from flowtorch.data import TAUDataloader
     >>> path = DATASETS["tau_backward_facing_step"]
-    >>> loader = TAUDataloader(path, base_name="sol.pval.unsteady_")
+    >>> loader = TAUDataloader(path, mesh_path=path, base_name="sol.pval.unsteady_")
     >>> times = loader.write_times
     >>> fields = loader.field_names[times[0]]
     >>> fields
@@ -51,24 +51,32 @@ class TAUDataloader(Dataloader):
 
     """
 
-    def __init__(self, path: str, base_name: str, distributed: bool = False,
+    def __init__(self, solution_path: str, mesh_path: str, base_name: str,
+                 distributed: bool = False, subfolders: bool = False,
                  dtype: str = DEFAULT_DTYPE):
         """Create loader instance from TAU simulation folder.
 
-        :param path: path to TAU simulation files
-        :type path: str
+        :param solution_path: path to TAU simulation solution files
+        :type solution_path: str
+        :param mesh_path: path to TAU simulation mesh files
+        :type mesh_path: str
         :param base_name: part of the solution file name before iteration count,
             e.g., base_name_ if the solution file is called base_name_i=0102_t=1.0
         :type base_name: str
         :param distributed: True if mesh and solution are distributed in domain
             files; defaults to False
         :type distributed: bool, optional
+        :param subfolders: True if solution files are stored in dedicated folders
+            for each write time; defaults to False
+        type subfolders: bool, optional
         :param dtype: tensor type, defaults to DEFAULT_DTYPE
         :type dtype: str, optional
         """
-        self._path = check_and_standardize_path(path)
+        self._sol_path = check_and_standardize_path(solution_path)
+        self._mesh_path = check_and_standardize_path(mesh_path)
         self._base_name = base_name
         self._distributed = distributed
+        self._subfolders = subfolders
         self._dtype = dtype
         if self._distributed:
             self._domain_ids = self._get_domain_ids()
@@ -85,7 +93,7 @@ class TAUDataloader(Dataloader):
         :return: sorted list of available domain ids
         :rtype: List[str]
         """
-        files = glob(f"{self._path}/{PMESH_NAME.format('*')}")
+        files = glob(f"{self._mesh_path}/{PMESH_NAME.format('*')}")
         ids = [s.split("grid_domain_")[-1].split("_")[0] for s in files]
         return sorted(ids, key=int)
 
@@ -97,13 +105,13 @@ class TAUDataloader(Dataloader):
         :return: name of the grid file
         :rtype: str
         """
-        files = glob(f"{self._path}/*.grd")
+        files = glob(f"{self._mesh_path}/*.grd")
         if len(files) < 1:
             raise FileNotFoundError(
-                f"Could not find mesh file (.grd) in {self._path}/")
+                f"Could not find mesh file (.grd) in {self._mesh_path}/")
         if len(files) > 1:
             raise FileNotFoundError(
-                f"Found multiple mesh files (.grd) in {self._path}/")
+                f"Found multiple mesh files (.grd) in {self._mesh_path}/")
         return files[0].split("/")[-1]
 
     def _decompose_file_name(self) -> Dict[str, str]:
@@ -116,12 +124,14 @@ class TAUDataloader(Dataloader):
         """
         if self._distributed:
             d0 = f".domain_{self._domain_ids[0]}"
-            files = glob(f"{self._path}/{self._base_name}i=*t=*{d0}")
+            files = glob(
+                f"{self._sol_path}/**/{self._base_name}i=*t=*{d0}", recursive=True)
         else:
-            files = glob(f"{self._path}/{self._base_name}i=*t=*")
+            files = glob(
+                f"{self._sol_path}/**/{self._base_name}i=*t=*", recursive=True)
         if len(files) < 1:
             raise FileNotFoundError(
-                f"Could not find solution files in {self._path}/")
+                f"Could not find solution files in {self._sol_path}/")
         time_iter = {}
         split_at = f".domain" if self._distributed else " "
         for f in files:
@@ -142,7 +152,11 @@ class TAUDataloader(Dataloader):
         :rtype: str
         """
         itr = self._time_iter[time]
-        return f"{self._path}/{self._base_name}i={itr}_t={time}{suffix}"
+        if self._subfolders:
+            path = f"{self._sol_path}/i={itr}_t={time}"
+        else:
+            path = f"{self._sol_path}"
+        return f"{path}/{self._base_name}i={itr}_t={time}{suffix}"
 
     def _load_domain_mesh_data(self, pid: str) -> pt.Tensor:
         """Load vertices and volumes for a single processor domain.
@@ -154,7 +168,7 @@ class TAUDataloader(Dataloader):
             coordinates of the vertices (x, y, z) and the cell volumes
         :rtype: pt.Tensor
         """
-        path = f"{self._path}/{PMESH_NAME.format(pid)}"
+        path = f"{self._mesh_path}/{PMESH_NAME.format(pid)}"
         with Dataset(path) as data:
             vertices = pt.tensor(data[PVERTEX_KEY][:], dtype=self._dtype)
             volumes = pt.tensor(data[PWEIGHT_KEY][:], dtype=self._dtype)
@@ -185,7 +199,7 @@ class TAUDataloader(Dataloader):
                 dim=0
             )
         else:
-            path = f"{self._path}/{self._find_grid_file()}"
+            path = f"{self._mesh_path}/{self._find_grid_file()}"
             with Dataset(path) as data:
                 vertices = pt.stack(
                     [pt.tensor(data[key][:], dtype=self._dtype)

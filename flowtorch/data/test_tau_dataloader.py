@@ -1,6 +1,8 @@
 # standard library packages
-import pytest
+from os.path import join
+
 # third party packages
+import pytest
 import torch as pt
 # flowtorch packages
 from flowtorch import DATASETS
@@ -11,19 +13,20 @@ class TestTAUDataloader():
     def test_get_domain_ids(self):
         path = DATASETS["tau_distributed"]
         prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, prefix, True)
+        loader = TAUDataloader(path, join(path, "mesh"), prefix,
+                               distributed=True, subfolders=True)
         assert loader._domain_ids == ["249", "258"]
 
     def test_find_grid_file(self):
         path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, "sol.pval.unsteady_")
+        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
         grid_file = loader._find_grid_file()
         assert grid_file == "PW_DES-HybQuadTRex-v2_yp-50_s1.15_ny67.grd"
 
     def test_decompose_file_name(self):
         # serial test case
         path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, "sol.pval.unsteady_")
+        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
         time_iter = loader._decompose_file_name()
         assert len(time_iter.keys()) == 2
         assert "2.9580000000e-02" in time_iter
@@ -31,7 +34,8 @@ class TestTAUDataloader():
         # distributed test case
         path = DATASETS["tau_distributed"]
         prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, prefix, True)
+        loader = TAUDataloader(path, join(path, "mesh"), prefix,
+                               distributed=True, subfolders=True)
         time_iter = loader._decompose_file_name()
         assert len(time_iter.keys()) == 1
         assert "3.409440000e-01" in time_iter
@@ -40,7 +44,8 @@ class TestTAUDataloader():
     def test_load_domain_mesh_data(self):
         path = DATASETS["tau_distributed"]
         prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, prefix, True)
+        loader = TAUDataloader(path, join(path, "mesh"), prefix,
+                               distributed=True, subfolders=True)
         data = loader._load_domain_mesh_data("249")
         assert data.shape == (17382, 4)
         data = loader._load_domain_mesh_data("258")
@@ -49,14 +54,15 @@ class TestTAUDataloader():
     def test_load_mesh_data(self):
         # serial/reconstructed
         path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, "sol.pval.unsteady_")
+        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
         n_points = 1119348
         assert loader.vertices.shape == (n_points, 3)
         assert loader.weights.shape == (n_points,)
         # distributed
         path = DATASETS["tau_distributed"]
         prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, prefix, True)
+        loader = TAUDataloader(path, join(path, "mesh"), prefix,
+                               distributed=True, subfolders=True)
         n_points = 34510
         assert loader.vertices.shape == (n_points, 3)
         assert loader.weights.shape == (n_points,)
@@ -64,20 +70,21 @@ class TestTAUDataloader():
     def test_write_times(self):
         # serial/reconstructed
         path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, "sol.pval.unsteady_")
+        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
         times = loader.write_times
         assert times[0] == "2.9580000000e-02"
         assert times[-1] == "3.2190000000e-02"
         # distributed
         path = DATASETS["tau_distributed"]
         prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, prefix, True)
+        loader = TAUDataloader(path, join(path, "mesh"), prefix,
+                               distributed=True, subfolders=True)
         assert loader.write_times[0] == "3.409440000e-01"
 
     def test_field_names(self):
         # serial/reconstructed
         path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, "sol.pval.unsteady_")
+        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
         times = loader.write_times
         assert len(loader.field_names.keys()) == 2
         assert "pressure" in loader.field_names[times[-1]]
@@ -85,7 +92,8 @@ class TestTAUDataloader():
         # distributed
         path = DATASETS["tau_distributed"]
         prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, prefix, True)
+        loader = TAUDataloader(path, join(path, "mesh"), prefix,
+                               distributed=True, subfolders=True)
         times = loader.write_times
         assert len(loader.field_names.keys()) == 1
         assert "pressure" in loader.field_names[times[0]]
@@ -94,7 +102,7 @@ class TestTAUDataloader():
     def test_load_snapshot(self):
         # serial/reconstructed
         path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, "sol.pval.unsteady_")
+        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
         times = loader.write_times
         field_names = loader.field_names[times[-1]]
         n_points = 1119348
@@ -118,7 +126,8 @@ class TestTAUDataloader():
         # distributed
         path = DATASETS["tau_distributed"]
         prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, prefix, True)
+        loader = TAUDataloader(path, join(path, "mesh"), prefix,
+                               distributed=True, subfolders=True)
         times = loader.write_times
         n_points = 34510
         # single snapshots, single field
