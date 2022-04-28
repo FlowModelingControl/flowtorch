@@ -18,6 +18,15 @@ class TestPSPDataloader():
         loader.zone = ""
         assert loader.zone == names[-1]
 
+    def test_mask(self):
+        loader = PSPDataloader(DATASETS["ipsp_fake.hdf5"])
+        masks = loader.mask_names
+        assert masks == ["Mask"]
+        loader.mask = "Mask"
+        assert loader.mask == "Mask"
+        loader.mask = ""
+        assert loader.mask == "Mask"
+
     def test_info(self):
         loader = PSPDataloader(DATASETS["ipsp_fake.hdf5"])
         info = loader.info
