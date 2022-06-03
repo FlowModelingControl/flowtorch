@@ -6,130 +6,168 @@ import pytest
 import torch as pt
 # flowtorch packages
 from flowtorch import DATASETS
-from flowtorch.data import TAUDataloader
+from flowtorch.data import TAUDataloader, TAUConfig
+
+
+SOLUTION_PREFIX_KEY = "solution_prefix"
+GRID_FILE_KEY = "primary_grid"
+GRID_PREFIX_KEY = "grid_prefix"
+N_DOMAINS_KEY = "n_domains"
+
+
+class TestTAUConfig():
+    path_0 = DATASETS["tau_backward_facing_step"]
+    path_1 = DATASETS["tau_cylinder_2D"]
+    file_name = "simulation.para"
+
+    def test_init(self):
+        config = TAUConfig(join(self.path_0, self.file_name))
+        assert config._path == self.path_0
+        assert config._file_name == self.file_name
+        assert len(config._file_content) > 0
+        assert all([isinstance(line, str) for line in config._file_content])
+        config = TAUConfig(join(self.path_1, self.file_name))
+        assert config._path == self.path_1
+        assert config._file_name == self.file_name
+
+    def test_parse_config(self):
+        config = TAUConfig(join(self.path_0, self.file_name))
+        empty = config._parse_config("Not in the File")
+        assert empty == ""
+        relaxation_solver = config._parse_config("Relaxation solver")
+        assert relaxation_solver == "Runge_Kutta"
+        n_mg = config._parse_config("Number of multigrid levels")
+        assert n_mg == "1"
+
+    def test_gather_config(self):
+        # backward facing step
+        config = TAUConfig(join(self.path_0, self.file_name))
+        config_values = config.config
+        assert config_values[SOLUTION_PREFIX_KEY] == "sol_files/sol"
+        assert config_values[GRID_FILE_KEY] == "grid_files/PW_DES-HybQuadTRex-v2_yp-50_s1.15_ny67.grd"
+        assert config_values[GRID_PREFIX_KEY] == "grid_files/distributed/dual"
+        assert config_values[N_DOMAINS_KEY] == 96
+        # 2D flow past a cylinder
+        config = TAUConfig(join(self.path_1, self.file_name))
+        config_values = config.config
+        assert config_values[SOLUTION_PREFIX_KEY] == "solution/solution"
+        assert config_values[GRID_FILE_KEY] == "cylinder_scaled.grid"
+        assert config_values[GRID_PREFIX_KEY] == "dualgrid/dual"
+        assert config_values[N_DOMAINS_KEY] == 16
 
 
 class TestTAUDataloader():
-    def test_get_domain_ids(self):
-        path = DATASETS["tau_distributed"]
-        prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, join(path, "mesh"), prefix,
-                               distributed=True, subfolders=True)
-        assert loader._domain_ids == ["249", "258"]
-
-    def test_find_grid_file(self):
-        path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
-        grid_file = loader._find_grid_file()
-        assert grid_file == "PW_DES-HybQuadTRex-v2_yp-50_s1.15_ny67.grd"
+    path_0 = DATASETS["tau_backward_facing_step"]
+    path_1 = DATASETS["tau_cylinder_2D"]
+    file_name = "simulation.para"
 
     def test_decompose_file_name(self):
-        # serial test case
-        path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
-        time_iter = loader._decompose_file_name()
-        assert len(time_iter.keys()) == 2
-        assert "2.9580000000e-02" in time_iter
-        assert time_iter["2.9580000000e-02"] == "14790"
-        # distributed test case
-        path = DATASETS["tau_distributed"]
-        prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, join(path, "mesh"), prefix,
-                               distributed=True, subfolders=True)
+        # backward facing step, serial
+        loader = TAUDataloader(join(self.path_0, self.file_name))
         time_iter = loader._decompose_file_name()
         assert len(time_iter.keys()) == 1
-        assert "3.409440000e-01" in time_iter
-        assert time_iter["3.409440000e-01"] == "17508"
+        assert "4.69800000000e-02" in time_iter
+        assert time_iter["4.69800000000e-02"] == "23490"
+        # backward facing step, distributed
+        loader = TAUDataloader(join(self.path_0, self.file_name), True)
+        time_iter = loader._decompose_file_name()
+        assert len(time_iter.keys()) == 1
+        assert "4.69800000000e-02" in time_iter
+        assert time_iter["4.69800000000e-02"] == "23490"
+        # 2D cylinder, serial
+        loader = TAUDataloader(join(self.path_1, self.file_name))
+        time_iter = loader._decompose_file_name()
+        assert len(time_iter.keys()) == 1
+        assert "6.0000e+02" in time_iter
+        assert time_iter["6.0000e+02"] == "1000"
+        # 2D cylinder, distributed
+        loader = TAUDataloader(join(self.path_1, self.file_name), True)
+        time_iter = loader._decompose_file_name()
+        assert len(time_iter.keys()) == 1
+        assert "6.0000e+02" in time_iter
+        assert time_iter["6.0000e+02"] == "1000"
+
+    def test_file_name(self):
+        # backward facing step, serial
+        loader = TAUDataloader(join(self.path_0, self.file_name))
+        file_name = join(self.path_0, "sol_files/sol") + \
+            ".pval.unsteady_i=23490_t=4.69800000000e-02"
+        assert loader._file_name("4.69800000000e-02") == file_name
+        # 2D cylinder
+        loader = TAUDataloader(join(self.path_1, self.file_name))
+        file_name = join(self.path_0, "solution/solution") + \
+            ".pval.unsteady_i=1000_t=6.0000e+02.domain_0"
+        assert loader._file_name("6.0000e+02", ".domain_0")
 
     def test_load_domain_mesh_data(self):
-        path = DATASETS["tau_distributed"]
-        prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, join(path, "mesh"), prefix,
-                               distributed=True, subfolders=True)
-        data = loader._load_domain_mesh_data("249")
-        assert data.shape == (17382, 4)
-        data = loader._load_domain_mesh_data("258")
-        assert data.shape == (17128, 4)
+        # backward facing step
+        loader = TAUDataloader(join(self.path_0, self.file_name), True)
+        data = loader._load_domain_mesh_data("0")
+        assert data.shape == (13936 - 2118, 4)
+        data = loader._load_domain_mesh_data("89")
+        assert data.shape == (14472 - 2638, 4)
+        # 2D cylinder
+        loader = TAUDataloader(join(self.path_1, self.file_name), True)
+        data = loader._load_domain_mesh_data("0")
+        assert data.shape == (4510 - 173, 4)
 
     def test_load_mesh_data(self):
-        # serial/reconstructed
-        path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
+        # backward facing step, serial
+        loader = TAUDataloader(join(self.path_0, self.file_name))
         n_points = 1119348
         assert loader.vertices.shape == (n_points, 3)
         assert loader.weights.shape == (n_points,)
-        # distributed
-        path = DATASETS["tau_distributed"]
-        prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, join(path, "mesh"), prefix,
-                               distributed=True, subfolders=True)
-        n_points = 34510
+        # backward facing step, distributed
+        loader = TAUDataloader(join(self.path_0, self.file_name), True)
         assert loader.vertices.shape == (n_points, 3)
         assert loader.weights.shape == (n_points,)
 
     def test_write_times(self):
-        # serial/reconstructed
-        path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
-        times = loader.write_times
-        assert times[0] == "2.9580000000e-02"
-        assert times[-1] == "3.2190000000e-02"
-        # distributed
-        path = DATASETS["tau_distributed"]
-        prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, join(path, "mesh"), prefix,
-                               distributed=True, subfolders=True)
-        assert loader.write_times[0] == "3.409440000e-01"
+        # backward facing step, serial
+        loader = TAUDataloader(join(self.path_0, self.file_name))
+        assert loader.write_times[0] == "4.69800000000e-02"
+        # backward facing step, distributed
+        loader = TAUDataloader(join(self.path_0, self.file_name), True)
+        assert loader.write_times[0] == "4.69800000000e-02"
 
     def test_field_names(self):
-        # serial/reconstructed
-        path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
+        # backward facing step, serial
+        loader = TAUDataloader(join(self.path_0, self.file_name))
         times = loader.write_times
-        assert len(loader.field_names.keys()) == 2
-        assert "pressure" in loader.field_names[times[-1]]
-        assert "density" in loader.field_names[times[-1]]
-        # distributed
-        path = DATASETS["tau_distributed"]
-        prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, join(path, "mesh"), prefix,
-                               distributed=True, subfolders=True)
+        assert "pressure" in loader.field_names[times[0]]
+        assert "density" in loader.field_names[times[0]]
+        # backward facing step, distributed
+        loader = TAUDataloader(join(self.path_0, self.file_name), True)
         times = loader.write_times
-        assert len(loader.field_names.keys()) == 1
         assert "pressure" in loader.field_names[times[0]]
         assert "density" in loader.field_names[times[0]]
 
     def test_load_snapshot(self):
-        # serial/reconstructed
-        path = DATASETS["tau_backward_facing_step"]
-        loader = TAUDataloader(path, path, "sol.pval.unsteady_")
+        # backward facing step, serial
+        loader = TAUDataloader(join(self.path_0, self.file_name))
         times = loader.write_times
         field_names = loader.field_names[times[-1]]
         n_points = 1119348
         # single snapshot, single field
-        field = loader.load_snapshot(field_names[0], times[-1])
+        field = loader.load_snapshot(field_names[0], times[0])
         assert field.shape == (n_points,)
         # multiple snapshots, single field
-        field_series = loader.load_snapshot(field_names[0], times[-2:])
+        field_series = loader.load_snapshot(
+            field_names[0], [times[0], times[0]])
         assert field_series.shape == (n_points, 2)
-        assert pt.allclose(field_series[:, -1], field)
+        assert pt.allclose(field_series[:, 0], field)
         # single snapshot, multiple fields
-        f1, f2 = loader.load_snapshot(field_names[:2], times[-1])
+        f1, f2 = loader.load_snapshot(field_names[:2], times[0])
         assert f1.shape == (n_points,)
         assert f2.shape == (n_points,)
         # multiple snapshots, multiple field
-        f1s,  f2s = loader.load_snapshot(field_names[:2], times[-2:])
+        f1s,  f2s = loader.load_snapshot(field_names[:2], [times[0], times[0]])
         assert f1s.shape == (n_points, 2)
         assert f2s.shape == (n_points, 2)
-        assert pt.allclose(f1s[:, -1], f1)
-        assert pt.allclose(f2s[:, -1], f2)
-        # distributed
-        path = DATASETS["tau_distributed"]
-        prefix = "solution_Delta_MUB_fine_iso_hybrid_58.pval.unsteady_"
-        loader = TAUDataloader(path, join(path, "mesh"), prefix,
-                               distributed=True, subfolders=True)
-        times = loader.write_times
-        n_points = 34510
+        assert pt.allclose(f1s[:, 0], f1)
+        assert pt.allclose(f2s[:, 0], f2)
+        # backward facing step, distributed
+        loader = TAUDataloader(join(self.path_0, self.file_name), True)
         # single snapshots, single field
         density = loader.load_snapshot("density", times[0])
         assert density.shape == (n_points,)
@@ -137,8 +175,7 @@ class TestTAUDataloader():
         density = loader.load_snapshot("density", [times[0], times[0]])
         assert density.shape == (n_points, 2)
         # single snapshot, multiple fields
-        density, p = loader.load_snapshot(
-            ["density", "pressure"], times[0])
+        density, p = loader.load_snapshot(["density", "pressure"], times[0])
         assert density.shape == (n_points, )
         assert p.shape == (n_points, )
         # multiple snapshots, multiple fields
