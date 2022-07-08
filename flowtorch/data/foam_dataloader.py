@@ -345,7 +345,7 @@ class FOAMCase(object):
         self._field_names = self._eval_field_names()
         if not self._check_mesh_files():
             sys.exit("Error: could not find valid mesh in case {:s}".format(
-                self._case._path))
+                self._path))
 
     def _is_binary(self, header: List[str]) -> bool:
         """Determine if the write format is binary.
