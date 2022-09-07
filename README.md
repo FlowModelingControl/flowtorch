@@ -76,6 +76,9 @@ The easiest way to install *flowTorch* is as follows:
 ```
 # install via pip
 pip3 install git+https://github.com/FlowModelingControl/flowtorch
+# or install a specific branch, e.g., aweiner
+pip3 install git+https://github.com/FlowModelingControl/flowtorch.git@aweiner
+
 # to uninstall flowTorch, run
 pip3 uninstall flowtorch
 ```
@@ -105,6 +108,34 @@ echo "export FLOWTORCH_DATASETS=\"$(pwd)/datasets/\"" >> ~/.bashrc
 echo "export FLOWTORCH_DATASETS=\"$(pwd)/datasets_minimal/\"" >> ~/.bashrc
 # reload bashrc
 . ~/.bashrc
+```
+
+## Installing ParaView
+
+**Note:** the following installation of ParaView is only necessary if the *TecplotDataloader* is needed.
+
+*flowTorch* uses the ParaView Python module for accessing [Tecplot](https://www.tecplot.com/) data. When installing ParaView, special attention must be paid to the installed Python and VTK versions. Therefore, the following manual installation is recommend instead of using a standard package installation of ParaView.
+
+1. Determine the version of Python:
+```
+python3 --version
+# example output
+Python 3.8.10
+```
+2. Download the ParaView binaries according to your Python version from [here](https://www.paraview.org/download/). Note that you may have to use an older version ParaView to match your Python version.
+3. Install the ParaView binaries, e.g., as follows:
+```
+# optional: remove old package installation if available
+sudo apt remove paraview
+# replace the archive's name if needed in the commands below
+sudo mv ParaView-5.9.1-MPI-Linux-Python3.8-64bit.tar.gz /opt/
+cd /opt
+sudo tar xf ParaView-5.9.1-MPI-Linux-Python3.8-64bit.tar.gz
+sudo rm ParaView-5.9.1-MPI-Linux-Python3.8-64bit.tar.gz
+cd ParaView-5.9.1-MPI-Linux-Python3.8-64bit/
+# add path to ParaView binary and Python modules
+echo export PATH="\$PATH:$(pwd)/bin" >> ~/.bashrc
+echo export PYTHONPATH="\$PYTHONPATH:$(pwd)/lib/python3.8/site-packages" >> ~/.bashrc
 ```
 
 ## Development
