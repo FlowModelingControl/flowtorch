@@ -257,8 +257,8 @@ class DMD(object):
         :return: projection error
         :rtype: pt.Tensor
         """
-        YH = self.modes @ pt.diag(self.eigvals) @ \
-            pt.linalg.pinv(self.modes) @ self._X.type(self.modes.dtype)
+        YH = (self.modes @ pt.diag(self.eigvals)) @ \
+            (pt.linalg.pinv(self.modes) @ self._X.type(self.modes.dtype))
         if self._Y.dtype in (pt.complex128, pt.complex64, pt.complex32):
             return YH - self._Y
         else:
