@@ -1,0 +1,2 @@
+- Nils Rathje, Philip Ströer, Andre Weiner, Tobias Knopp, Axel Probst and Rolf Radespiel: Experimental analysis of longitudinal vortex dynamics,AIAA 2022-3305. AIAA AVIATION 2022 Forum, June 2022, [https://doi.org/10.2514/6.2022-3305](https://doi.org/10.2514/6.2022-3305)
+- Andre Weiner and Richard Semaan: Simulation and modal analysis of transonic shock buffets on a NACA-0012 airfoil, AIAA 2022-2591, AIAA SCITECH 2022 Forum, January 2022, [https://doi.org/10.2514/6.2022-2591](https://doi.org/10.2514/6.2022-2591)

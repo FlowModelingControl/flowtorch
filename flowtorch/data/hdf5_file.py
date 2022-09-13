@@ -9,7 +9,7 @@ of reconstructed OpenFOAM simulation cases into the HDF5-based flowTorch format.
 """
 
 # standard library packages
-from os.path import isfile, exists
+from os.path import isfile, exists, join
 from os import remove
 from typing import List, Tuple, Dict, Union
 import sys
@@ -20,7 +20,7 @@ from h5py import File
 from flowtorch import DEFAULT_DTYPE
 from .dataloader import Dataloader
 from .foam_dataloader import FOAMCase, FOAMMesh, FOAMDataloader, POLYMESH_PATH, MAX_LINE_HEADER, FIELD_TYPE_DIMENSION
-from .utils import check_list_or_str
+from .utils import check_list_or_str, check_and_standardize_path
 
 
 CONST_GROUP = "constant"
@@ -107,21 +107,21 @@ class HDF5Dataloader(Dataloader):
         if isinstance(field_name, list):
             if isinstance(time, list):
                 return [pt.stack([pt.tensor(
-                        self._file[f"{VAR_GROUP}/{t}/{field}"][:], dtype=self._dtype
+                        self._file[f"{VAR_GROUP}/{t}/{field}"][:].copy(), dtype=self._dtype
                         ).squeeze() for t in time], dim=-1) for field in field_name]
             else:
                 return [pt.tensor(
-                        self._file[f"{VAR_GROUP}/{time}/{field}"][:], dtype=self._dtype
+                        self._file[f"{VAR_GROUP}/{time}/{field}"][:].copy(), dtype=self._dtype
                         ).squeeze() for field in field_name]
         # load single field
         else:
             if isinstance(time, list):
                 return pt.stack([pt.tensor(
-                    self._file[f"{VAR_GROUP}/{t}/{field_name}"][:], dtype=self._dtype
+                    self._file[f"{VAR_GROUP}/{t}/{field_name}"][:].copy(), dtype=self._dtype
                 ).squeeze() for t in time], dim=-1)
             else:
                 return pt.tensor(
-                    self._file[f"{VAR_GROUP}/{time}/{field_name}"][:], dtype=self._dtype
+                    self._file[f"{VAR_GROUP}/{time}/{field_name}"][:].copy(), dtype=self._dtype
                 ).squeeze()
 
     @property
@@ -146,6 +146,18 @@ class HDF5Dataloader(Dataloader):
     def weights(self) -> pt.Tensor:
         return pt.tensor(
             self._file[f"{CONST_GROUP}/{VOLUMES_DS}"][:], dtype=self._dtype
+        )
+
+    @property
+    def connectivity(self) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{CONST_GROUP}/{CONNECTIVITY_DS}"][:], dtype=self._dtype
+        )
+
+    @property
+    def edge_vertices(self) -> pt.Tensor:
+        return pt.tensor(
+            self._file[f"{CONST_GROUP}/{VERTICES_DS}"][:], dtype=self._dtype
         )
 
 
@@ -244,7 +256,7 @@ class FOAM2HDF5(object):
     >>> from flowtorch import DATASETS
     >>> from flowtorch.data import FOAM2HDF5
     >>> converter = FOAM2HDF5(DATASETS["of_cavity_ascii"])
-    >>> converter.convert("cavity.hdf5", skip_zero=True)
+    >>> converter.convert("cavity.hdf5", ["U", "p"], ["0.1", "0.2", "0.3"])
 
     """
 
@@ -256,21 +268,28 @@ class FOAM2HDF5(object):
         :param dtype: tensor type, defaults to DEFAULT_DTYPE
         :type dtype: str, optional
         """
-        self._loader = FOAMDataloader(path, dtype)
+        self._loader = FOAMDataloader(path, dtype, False)
         self._dtype = dtype
         self._topology = None
         self._mesh_points = None
 
-    def convert(self, filename: str, skip_zero: bool = True):
+    def convert(self, filename: str, fields: List[str] = None,
+                times: List[str] = None):
         """Convert OpenFOAM case to flowTorch HDF5 file.
 
         :param filename: name of the HDF5 file
         :type filename: str
-        :param skip_zero: skip zero folder if true; defaults to True
-        :type skip_zero: bool, optional
+        :param fields: list of fields to convert; if None, all available
+            fields are converted
+        :type fields: List[str], optional
+        :param times: list of times to convert; if None, all available
+            times are converted
+        :type times: List[str], optional
         """
         file_path = self._loader._case._path + "/" + filename
         self._remove_file_if_present(file_path)
+        # this is currently redundant since the loader is initialized
+        # with distributed set to False
         if self._loader._case._distributed:
             message = """The direct conversion of distributed cases is currently not supported.\n
 Workaround:
@@ -286,7 +305,7 @@ Workaround:
             print("Converting mesh.")
             self._convert_mesh(writer)
             print("Converting fields.")
-            self._convert_fields(writer, skip_zero)
+            self._convert_fields(writer, fields, times)
             print("Conversion finished. Writing XDMF file.")
             writer.write_xdmf()
 
@@ -369,22 +388,28 @@ Workaround:
     def _get_cell_volumes(self, job: int = 0):
         return self._loader._mesh.get_cell_volumes()
 
-    def _convert_fields(self, writer: HDF5Writer, skip_zero: bool):
+    def _convert_fields(self, writer: HDF5Writer, fields: List[str],
+                        times: List[str]):
         """Convert convert OpenFOAM fields to HDF5.
 
         :param writer: HDF5 writer
         :type writer: :class:`HDF5Writer`
-        :param skip_zero: skip zero folder if true
-        :type skip_zero: bool
+        :param fields: list of fields to convert; if None, all available
+            fields are converted
+        :type fields: List[str]
+        :param times: list of times to convert; if None, all available
+            times are converted
+        :type times: List[str]
         """
-        field_info = self._gather_field_information(skip_zero)
+        field_info = self._gather_field_information(fields, times)
         for job, info in enumerate(field_info):
             print(
                 f"Converting field {info[0]} at time {info[1]}, dimension {info[2]}")
             data = self._load_field(*info[:2], job=job)
             writer.write(info[0], info[2], data, info[1])
 
-    def _gather_field_information(self, skip_zero: bool) -> List[list]:
+    def _gather_field_information(self, fields: List[str], times: List[str]
+                                  ) -> List[tuple]:
         """Gather field information for parallel writing.
 
         - check if field type is supported
@@ -392,9 +417,9 @@ Workaround:
 
         :param skip_zero: skip zero folder if true
         :type skip_zero: bool
-        :return: list of all fields; each list element is a list
-            with the entries [name, time, shape]
-        :rtype: list
+        :return: list of all fields; each list element is a tuple
+            with the entries (name, time, shape)
+        :rtype: List[tuple]
         """
         def load_n_lines(file_name, n):
             lines = []
@@ -406,17 +431,21 @@ Workaround:
         field_info = []
         mesh_path = self._loader._case._path + "/" + POLYMESH_PATH
         n_cells = self._loader._mesh._get_n_cells(mesh_path)
-        all_fields = self._loader.field_names
-        if skip_zero and "0" in all_fields.keys():
-            del all_fields["0"]
-        for time in all_fields.keys():
-            for name in all_fields[time]:
+        times_to_convert = self._loader.write_times
+        if times is not None:
+            times_to_convert = [t for t in times if t in times_to_convert]
+        for time in times_to_convert:
+            fields_to_convert = self._loader.field_names[time]
+            if fields is not None:
+                fields_to_convert = [
+                    field for field in fields if field in fields_to_convert]
+            for name in fields_to_convert:
                 path = self._loader._case.build_file_path(name, time)
                 header = load_n_lines(path, MAX_LINE_HEADER)
                 field_type = self._loader._field_type(header)
                 if field_type in FIELD_TYPE_DIMENSION.keys():
                     field_info.append(
-                        [name, time, (n_cells, FIELD_TYPE_DIMENSION[field_type])])
+                        (name, time, (n_cells, FIELD_TYPE_DIMENSION[field_type])))
         return field_info
 
     def _load_field(self, field: str, time: str, job: int = 0) -> pt.Tensor:
@@ -437,7 +466,7 @@ class XDMFWriter(object):
     def __init__(self, file_path: str, hdf5_file: File):
         """Create XDMFWriter instance from path and file.
 
-        :param file_path: path to DHF5 file
+        :param file_path: path to HDF5 file
         :type file_path: str
         :param hdf5_file: HDF5 file instance
         :type hdf5_file: File
@@ -607,7 +636,8 @@ class XDMFWriter(object):
         :type filename: str, optional
         """
         xdmf_str = XDMF_HEADER
-        times = list(self._file[VAR_GROUP].keys())
+        times = list(self._file[VAR_GROUP].keys()
+                     ) if VAR_GROUP in self._file else []
         if len(times) > 0:
             for time in times:
                 xdmf_str += self._add_grid(time, " "*12)
@@ -629,3 +659,37 @@ class XDMFWriter(object):
         )
         with open(self._path + "/" + filename, "w") as file:
             file.write(xdmf_str)
+
+
+def copy_hdf5_mesh(path: str, from_file: str, to_file: str):
+    """Create a copy of an flowTorch hdf5 file containing only the mesh.
+
+    Sometimes, it is helpul to create a new copy of an existing hdf5 file
+    that contains only the mesh, e.g., to create a separate file for
+    POD or DMD modes.
+
+    :param path: location of the flowtorch hdf5 file exclusing the filename
+    :type path: str
+    :param from_file: name of the file from which to copy the mesh
+    :type from_file: str
+    :param to_file: name of the file to which to copy the mesh
+    :type to_file: str
+    """
+    path = check_and_standardize_path(path)
+    from_file_path = join(path, from_file)
+    loader = HDF5Dataloader(from_file_path)
+    to_file_path = join(path, to_file)
+    print(f"Copying mesh from file {from_file_path} to {to_file_path}")
+    writer = HDF5Writer(to_file_path)
+    datasets = {
+        VERTICES_DS: loader.edge_vertices,
+        CENTERS_DS: loader.vertices,
+        VOLUMES_DS: loader.weights,
+        CONNECTIVITY_DS: loader.connectivity
+    }
+    for ds_key in datasets.keys():
+        data = datasets[ds_key]
+        writer.write(ds_key, data.shape, data, None, data.dtype)
+    xdmf_name = f"{to_file.split('.')[0]}.xdmf"
+    xdmf = XDMFWriter.from_filepath(to_file_path)
+    xdmf.create_xdmf(xdmf_name)

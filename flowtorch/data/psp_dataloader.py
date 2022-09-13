@@ -27,7 +27,6 @@ COORDINATE_KEYS = ["CoordinatesX", "CoordinatesY", "CoordinatesZ"]
 INFO_KEY = "Info"
 PARAMETER_KEY = "Parameter"
 DESCRIPTION_KEY = "ParameterDescription"
-WEIGHT_KEY = "Mask"
 TIME_KEY = "TimeValues"
 FIELDS = {
     "Cp": "Images"
@@ -60,6 +59,9 @@ class PSPDataloader(Dataloader):
     >>> loader.zone = "Zone0001"
     >>> loader.zone_info["ZoneName"]
     HTP
+    >>> loader.mask_names
+    ['Mask1', "Mask2"]
+    >>> loader.mask = "Mask2"
     >>> cp = loader.load_snapshot("Cp", loader.write_times[:10])
     >>> cp.shape
     torch.Size([250, 75, 10])
@@ -82,6 +84,8 @@ class PSPDataloader(Dataloader):
             raise FileNotFoundError(f"Could not find file {path}")
         self._zone_names = None
         self._zone = self.zone_names[0]
+        self._mask_names = None
+        self._mask = self.mask_names[0]
         self._info = None
 
     def _time_to_index(self, time: Union[List[str], str]) -> Union[List[int], int]:
@@ -175,9 +179,45 @@ class PSPDataloader(Dataloader):
         """
         if zone_name in self._zone_names:
             self._zone = zone_name
+            self._mask_names = None
+            self._mask = self.mask_names[0]
         else:
             print(f"{zone_name} not found. Available zones are:")
             print(self._zone_names)
+
+    @property
+    def mask_names(self) -> List[str]:
+        """Find available binary masks in the HDF5 file.
+
+        :return: list of mask names
+        :rtype: List[str]
+        """
+        if self._mask_names is None:
+            keys = self._file[self.zone].keys()
+            self._mask_names = [key for key in keys if key.startswith("Mask")]
+        return self._mask_names
+
+    @property
+    def mask(self) -> str:
+        """Name of the currently active mask.
+
+        :return: name of the activated mask
+        :rtype: str
+        """
+        return self._mask
+
+    @mask.setter
+    def mask(self, mask_name: str):
+        """Set active mask.
+
+        :param mask_name: name of the mask to activate
+        :type mask_name: str
+        """
+        if mask_name in self._mask_names:
+            self._mask = mask_name
+        else:
+            print(f"{mask_name} not found. Available masks are:")
+            print(self._mask_names)
 
     @property
     def info(self) -> Dict[str, tuple]:
@@ -236,5 +276,5 @@ class PSPDataloader(Dataloader):
     @property
     def weights(self) -> pt.Tensor:
         return pt.tensor(
-            self._file[f"{self.zone}/{WEIGHT_KEY}"][:, :], dtype=self._dtype
+            self._file[f"{self.zone}/{self.mask}"][:, :], dtype=self._dtype
         )

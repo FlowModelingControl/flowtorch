@@ -17,7 +17,7 @@ https://user-images.githubusercontent.com/8482575/120886182-f2b78800-c5ec-11eb-9
 
 ## Why *flowTorch*?
 
-The *flowTorch* project was started to make the analysis and modeling of fluid data **easy** and **accessible** to everyone. The library design intends to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. *flowTorch* helps to fuse data from a wide range of file formats typical for fluid flow data, for example, to compare experiments simulations. The available analysis and modeling tools are rigorously tested and demonstrated on a variety of different fluid flow datasets. Moreover, one can significantly accelerate the entire process of accessing, cleaning, analysing, and modeling fluid flow data by starting with one of the pipelines available in the *flowTorch* [documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.0/index.html).
+The *flowTorch* project was started to make the analysis and modeling of fluid data **easy** and **accessible** to everyone. The library design intends to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. *flowTorch* helps to fuse data from a wide range of file formats typical for fluid flow data, for example, to compare experiments simulations. The available analysis and modeling tools are rigorously tested and demonstrated on a variety of different fluid flow datasets. Moreover, one can significantly accelerate the entire process of accessing, cleaning, analysing, and modeling fluid flow data by starting with one of the pipelines available in the *flowTorch* [documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.1/index.html).
 
 To get a first impression of how working with *flowTorch* looks like, the code snippet below shows part of a pipeline for performing a dynamic mode decomposition (DMD) of a transient *OpenFOAM* simulation.
 
@@ -78,6 +78,9 @@ The easiest way to install *flowTorch* is as follows:
 ```
 # install via pip
 pip3 install git+https://github.com/FlowModelingControl/flowtorch
+# or install a specific branch, e.g., aweiner
+pip3 install git+https://github.com/FlowModelingControl/flowtorch.git@aweiner
+
 # to uninstall flowTorch, run
 pip3 uninstall flowtorch
 ```
@@ -90,7 +93,7 @@ and install the dependencies listed in *requirements.txt*:
 pip3 install -r requirements.txt
 ```
 
-To get an overview of what *flowTorch* can do for you, have a look at the [online documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.0/index.html). The examples presented in the online documentation are also contained in this repository. In fact, the documentation is a static version of several [Jupyter labs](https://jupyter.org/) with start-to-end analyses. If you are interested in an interactive version of one particular example, navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the **corresponding datasets are required**. The datasets can be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiQUyeDFx3sg2T6LLHBQoCCx/datasets_29_10_2021.tar.gz) (~1.4GB). If the data are only required for unit testing, a reduced dataset may be downloaded [here](https://cloudstorage.tu-braunschweig.de/getlink/fiFZaHCgTWYeq1aZVg3hAui1/datasets_minimal_29_10_2021.tar.gz) (~384MB). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
+To get an overview of what *flowTorch* can do for you, have a look at the [online documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.1/index.html). The examples presented in the online documentation are also contained in this repository. In fact, the documentation is a static version of several [Jupyter labs](https://jupyter.org/) with start-to-end analyses. If you are interested in an interactive version of one particular example, navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the **corresponding datasets are required**. The datasets can be downloaded [here](https://cloud.tu-braunschweig.de/s/sJYEfzFG7yDg3QT) (~2.6GB). If the data are only required for unit testing, a reduced dataset may be downloaded [here](https://cloud.tu-braunschweig.de/s/b9xJ7XSHMbdKwxH) (~411MB). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
 ```
 # full dataset
 tar xzf datasets_29_10_2021.tar.gz
@@ -107,6 +110,34 @@ echo "export FLOWTORCH_DATASETS=\"$(pwd)/datasets/\"" >> ~/.bashrc
 echo "export FLOWTORCH_DATASETS=\"$(pwd)/datasets_minimal/\"" >> ~/.bashrc
 # reload bashrc
 . ~/.bashrc
+```
+
+## Installing ParaView
+
+**Note:** the following installation of ParaView is only necessary if the *TecplotDataloader* is needed.
+
+*flowTorch* uses the ParaView Python module for accessing [Tecplot](https://www.tecplot.com/) data. When installing ParaView, special attention must be paid to the installed Python and VTK versions. Therefore, the following manual installation is recommend instead of using a standard package installation of ParaView.
+
+1. Determine the version of Python:
+```
+python3 --version
+# example output
+Python 3.8.10
+```
+2. Download the ParaView binaries according to your Python version from [here](https://www.paraview.org/download/). Note that you may have to use an older version ParaView to match your Python version.
+3. Install the ParaView binaries, e.g., as follows:
+```
+# optional: remove old package installation if available
+sudo apt remove paraview
+# replace the archive's name if needed in the commands below
+sudo mv ParaView-5.9.1-MPI-Linux-Python3.8-64bit.tar.gz /opt/
+cd /opt
+sudo tar xf ParaView-5.9.1-MPI-Linux-Python3.8-64bit.tar.gz
+sudo rm ParaView-5.9.1-MPI-Linux-Python3.8-64bit.tar.gz
+cd ParaView-5.9.1-MPI-Linux-Python3.8-64bit/
+# add path to ParaView binary and Python modules
+echo export PATH="\$PATH:$(pwd)/bin" >> ~/.bashrc
+echo export PYTHONPATH="\$PYTHONPATH:$(pwd)/lib/python3.8/site-packages" >> ~/.bashrc
 ```
 
 ## Development
@@ -151,21 +182,24 @@ If you encounter any issues using *flowTorch* or if you have any questions regar
 
 ## Reference
 
-If *flowTorch* aids your work, you may support our work by referencing the following software article:
+If *flowTorch* aids your work, you may support the project by referencing the following article:
+
 ```
 @article{Weiner2021,
-  doi = {10.21105/joss.03860},
-  url = {https://doi.org/10.21105/joss.03860},
-  year = {2021},
-  publisher = {The Open Journal},
-  volume = {6},
-  number = {68},
-  pages = {3860},
-  author = {Andre Weiner and Richard Semaan},
-  title = {flowTorch - a Python library for analysis and reduced-order modeling of fluid flows},
-  journal = {Journal of Open Source Software}
-}
+doi = {10.21105/joss.03860},
+url = {https://doi.org/10.21105/joss.03860},
+year = {2021},
+publisher = {The Open Journal},
+volume = {6},
+number = {68},
+pages = {3860},
+author = {Andre Weiner and Richard Semaan},
+title = {flowTorch - a Python library for analysis and reduced-order modeling of fluid flows},
+journal = {Journal of Open Source Software}
+} 
 ```
+
+For a list of scientific works relying on flowTorch, refer to [this list](references.md).
 
 ## License
 

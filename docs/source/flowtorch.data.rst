@@ -58,6 +58,14 @@ flowtorch.data.tau\_dataloader
    :undoc-members:
    :show-inheritance:
 
+flowtorch.data.tecplot\_dataloader
+----------------------------------
+
+.. automodule:: flowtorch.data.tecplot_dataloader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 flowtorch.data.selection\_tools
 -------------------------------
 

@@ -27,13 +27,46 @@ def test_DMD():
     assert dmd.amplitude.dtype == pt.complex64
     assert dmd.dynamics.shape == (rank, data.shape[-1])
     assert dmd.dynamics.dtype == pt.complex64
+    assert dmd.integral_contribution.shape == (rank,)
+    assert dmd.integral_contribution.dtype == pt.float32
     assert dmd.reconstruction.shape == data.shape
     assert dmd.reconstruction.dtype == data.dtype
     partial = dmd.partial_reconstruction({0})
     assert partial.dtype == data.dtype
     assert partial.shape == data.shape
-    parital = dmd.partial_reconstruction({0, 2})
+    partial = dmd.partial_reconstruction({0, 2})
     assert partial.dtype == data.dtype
     assert partial.shape == data.shape
+    top = dmd.top_modes(10)
+    top = dmd.top_modes(10, True)
+    assert top.shape == (min(rank, 10),)
+    assert top.dtype == pt.int64
+    assert dmd.reconstruction_error.shape == data.shape
+    assert dmd.projection_error.shape == (data.shape[0], data.shape[1] - 1)
+    # robust DMD
+    dmd = DMD(data, dt=0.1, rank=rank, robust=True)
+    assert dmd.svd.L.shape == (data.shape[0], rank+1)
+    # unitary operator
+    dmd = DMD(data, dt=0.1, rank=rank, unitary=True)
+    operator = dmd.operator
+    shape = operator.shape
+    assert shape == (rank, rank)
+    diag = operator.conj().T @ operator
+    assert pt.allclose(diag, pt.diag(pt.ones(rank)), atol=1e-6)
+    # optimal mode amplitudes
+    dmd = DMD(data, dt=0.1, rank=rank, optimal=True)
+    dmd = DMD(data, dt=0.1, rank=rank, unitary=True, optimal=True)
+    assert dmd.amplitude.shape == (rank,)
+    assert dmd.amplitude.dtype == pt.complex64
+    # total least-squares
+    dmd = DMD(data, dt=0.1, tlsq=True)
+    assert dmd.amplitude.dtype == pt.complex64
+    dmd = DMD(data, dt=0.1, rank=rank, optimal=True, tlsq=True)
+    assert dmd.amplitude.shape == (rank,)
+    DX, DY = dmd.tlsq_error
+    assert  DX.shape == (data.shape[0], data.shape[1] - 1)
+    assert  DY.shape == (data.shape[0], data.shape[1] - 1)
+
+
 
 
