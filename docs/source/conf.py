@@ -25,11 +25,11 @@ def setup(app):
 # -- Project information -----------------------------------------------------
 
 project = 'flowTorch'
-copyright = '2020, flowTorch contributors'
+copyright = '2022, flowTorch contributors'
 author = 'flowTorch contributors'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1'
+release = '1.1'
 
 
 # -- General configuration ---------------------------------------------------

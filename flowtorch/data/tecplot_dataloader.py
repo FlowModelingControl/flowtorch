@@ -25,18 +25,18 @@ class TecplotDataloader(Dataloader):
 
     Examples
 
-    >> from flowtorch import DATASETS
-    >> from flowtorch.data import TecplotDataloader
-    >> path = DATASETS["plt_naca2409_surface"]
-    >> loader = TecplotDataloader.from_tau(path, "alfa16.surface.pval.unsteady_")
-    >> loader.zone_names
+    >>> from flowtorch import DATASETS
+    >>> from flowtorch.data import TecplotDataloader
+    >>> path = DATASETS["plt_naca2409_surface"]
+    >>> loader = TecplotDataloader.from_tau(path, "alfa16.surface.pval.unsteady_")
+    >>> loader.zone_names
     ["ls", "te", "us"]
-    >> loader.zone
+    >>> loader.zone
     "le"
-    >> loader.zone = "us"
-    >> times = loader.write_times
-    >> density = loader.load_snapshot("density", times)
-    >> density.shape
+    >>> loader.zone = "us"
+    >>> times = loader.write_times
+    >>> density = loader.load_snapshot("density", times)
+    >>> density.shape
     torch.Size([300, 3])
 
     """
