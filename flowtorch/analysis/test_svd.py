@@ -34,7 +34,6 @@ class TestSVD():
     def test_optimal_rank(self):
         svd = SVD(self.data)
         assert 1 <= svd.opt_rank <= self.cols
-        assert svd._cols == svd.rank
 
     def test_reconstruct(self):
         data = self.data.type(pt.float64)

@@ -247,7 +247,6 @@ class SVD(object):
     @rank.setter
     def rank(self, value: int):
         self._rank = max(min(self._cols, value), 1)
-        self._cols = self._rank
 
     @property
     def opt_rank(self) -> int:
