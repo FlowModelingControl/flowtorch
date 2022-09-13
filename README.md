@@ -180,7 +180,24 @@ If you encounter any issues using *flowTorch* or if you have any questions regar
 
 ## Reference
 
-If *flowTorch* aids your work, you may support our work by referencing this repository.
+If *flowTorch* aids your work, you may support the project by referencing the following article:
+
+```
+@article{Weiner2021,
+doi = {10.21105/joss.03860},
+url = {https://doi.org/10.21105/joss.03860},
+year = {2021},
+publisher = {The Open Journal},
+volume = {6},
+number = {68},
+pages = {3860},
+author = {Andre Weiner and Richard Semaan},
+title = {flowTorch - a Python library for analysis and reduced-order modeling of fluid flows},
+journal = {Journal of Open Source Software}
+} 
+```
+
+For a list of scientific works relying on flowTorch, refer to [this list](references.md).
 
 ## License
 
