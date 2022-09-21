@@ -126,10 +126,10 @@ class DMD(object):
         """
         if self._optimal:
             vander = pt.vander(self.eigvals, self._dm.shape[-1], True)
-            P = (self.modes.conj().T @ self.modes) * \
+            P = (self._modes.conj().T @ self._modes) * \
                 (vander @ vander.conj().T).conj()
             q = pt.diag(vander @ self._dm.type(P.dtype).conj().T @
-                        self.modes).conj()
+                        self._modes).conj()
         else:
             P = self._modes
             q = self._X[:, 0].type(P.dtype)
@@ -143,7 +143,7 @@ class DMD(object):
         :return: reconstructed data matrix
         :rtype: pt.Tensor
         """
-        rows, cols = self.modes.shape
+        rows, cols = self._modes.shape
         mode_mask = pt.zeros(cols, dtype=pt.complex64)
         mode_indices = pt.tensor(list(mode_indices), dtype=pt.int64)
         mode_mask[mode_indices] = 1.0
@@ -237,9 +237,9 @@ class DMD(object):
         :rtype: pt.Tensor
         """
         if self._dm.dtype in (pt.complex128, pt.complex64, pt.complex32):
-            return (self._modes @ self.dynamics).type(self._dm.dtype)
+            return (self.modes @ self.dynamics).type(self._dm.dtype)
         else:
-            return (self._modes @ self.dynamics).real.type(self._dm.dtype)
+            return (self.modes @ self.dynamics).real.type(self._dm.dtype)
 
     @property
     def reconstruction_error(self) -> pt.Tensor:
@@ -257,8 +257,8 @@ class DMD(object):
         :return: projection error
         :rtype: pt.Tensor
         """
-        YH = (self.modes @ pt.diag(self.eigvals)) @ \
-            (pt.linalg.pinv(self.modes) @ self._X.type(self.modes.dtype))
+        YH = (self._modes @ pt.diag(self.eigvals)) @ \
+            (pt.linalg.pinv(self._modes) @ self._X.type(self._modes.dtype))
         if self._Y.dtype in (pt.complex128, pt.complex64, pt.complex32):
             return YH - self._Y
         else:

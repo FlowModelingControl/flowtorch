@@ -1,6 +1,8 @@
-# standard library packages
-import pytest
+"""Unit tests for the DMD class.
+"""
+
 # third party packages
+import pytest
 import torch as pt
 # flowtorch packages
 from flowtorch import DATASETS
