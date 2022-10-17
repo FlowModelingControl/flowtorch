@@ -153,24 +153,39 @@ class DMD(object):
         else:
             return reconstruction.real.type(self._dm.dtype)
 
-    def top_modes(self, n: int = 10, integral: bool = False) -> pt.Tensor:
+    def top_modes(self, n: int = 10, integral: bool = False,
+                  f_min: float = -float("inf"),
+                  f_max: float = float("inf")) -> pt.Tensor:
         """Get the indices of the first n most important modes.
 
         Note that the conjugate complex modes for real data matrices are
-        not filtered out.
+        not filtered out by default. However, by setting the lower frequency
+        threshold to a positive number, only modes with positive imaginary
+        part are considered.
 
         :param n: number of indices to return; defaults to 10
         :type n: int
         :param integral: if True, the modes are sorted according to their
             integral contribution; defaults to False
         :type integral: bool, optional
+        :param f_min: consider only modes with a frequency larger or equal
+            to f_min; defaults to -inf
+        :type f_min: float, optional
+        :param f_max: consider only modes with a frequency smaller than f_max;
+            defaults to -inf
+        :type f_max: float, optional
         :return: indices of top n modes sorted by amplitude or integral
             contribution
         :rtype: pt.Tensor
         """
         importance = self.integral_contribution if integral else self.amplitude
-        n = min(n, importance.shape[0])
-        return importance.abs().topk(n).indices
+        modes_in_range = pt.logical_and(self.frequency >= f_min,
+                                        self.frequency < f_max)
+        mode_indices = pt.tensor(range(modes_in_range.shape[0]),
+                                 dtype=pt.int64)[modes_in_range]
+        n = min(n, modes_in_range.shape[0])
+        top_n = importance[mode_indices].abs().topk(n).indices
+        return mode_indices[top_n]
 
     @property
     def required_memory(self) -> int:
