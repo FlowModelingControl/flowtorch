@@ -2,6 +2,7 @@
 
 # standard library packages
 from os.path import exists
+from os import sep
 from typing import Tuple, List, Union
 
 
@@ -36,7 +37,7 @@ def check_and_standardize_path(path: str, folder: bool = True):
 
     """
     if exists(path):
-        if folder and path[-1] == "/":
+        if folder and path[-1] == sep:
             return path[:-1]
         else:
             return path

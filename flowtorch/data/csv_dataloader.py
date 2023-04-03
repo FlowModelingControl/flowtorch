@@ -12,6 +12,7 @@ settings automatically.
 
 # standard library 
 from os.path import join
+from os import sep
 from glob import glob
 import re
 from typing import List, Dict, Tuple, Union
@@ -152,7 +153,7 @@ class CSVDataloader(Dataloader):
         :type dtype: str
 
         """
-        file_name = sorted(glob(f"{path}/{prefix}*{suffix}"))[0]
+        file_name = sorted(glob(join(path, f"{prefix}*{suffix}")))[0]
         with open(file_name, "r") as davis_file:
             content = davis_file.readlines()
             for line in content:
@@ -196,9 +197,9 @@ class CSVDataloader(Dataloader):
         :type dtype: str
 
         """
-        folders = glob(f"{path}/*")
+        folders = glob(join(path, "*"))
         times = sorted(
-            [folder.split("/")[-1] for folder in folders], key=float
+            [folder.split(sep)[-1] for folder in folders], key=float
         )
         filepath = join(path, times[0], file_name)
         with open(filepath, "r") as surface:
@@ -228,9 +229,9 @@ class CSVDataloader(Dataloader):
 
         """
         if self._time_folders:
-            return f"{self._path}/{time}/{self._prefix}{self._suffix}"
+            return join(self._path, time, f"{self._prefix}{self._suffix}")
         else:
-            return f"{self._path}/{self._prefix}{time}{self._suffix}"
+            return join(self._path, f"{self._prefix}{time}{self._suffix}")
 
     def _load_csv(self, time: str) -> DataFrame:
         """Load a single CSV snapshot.
@@ -257,12 +258,12 @@ class CSVDataloader(Dataloader):
         if self._time_folders:
             folders = glob(f"{self._path}/*")
             return sorted(
-                [folder.split("/")[-1] for folder in folders], key=float
+                [folder.split(sep)[-1] for folder in folders], key=float
             )
         else:
             files = glob(self._build_file_path("*"))
             return sorted(
-                [f.split("/")[-1][len(self._prefix):-len(self._suffix)]
+                [f.split(sep)[-1][len(self._prefix):-len(self._suffix)]
                  for f in files], key=float
             )
 

@@ -10,7 +10,8 @@ the finite volume mesh.
 
 # standard library packages
 import glob
-import os
+from os.path import isdir, isfile, join
+from os import sep, listdir
 import struct
 import sys
 from typing import List, Dict, Tuple, Union
@@ -26,8 +27,8 @@ FIELD_TYPE_DIMENSION = {
     b"volScalarField": 1,
     b"volVectorField": 3
 }
-CONSTANT_PATH = "constant/"
-POLYMESH_PATH = "constant/polyMesh/"
+CONSTANT_PATH = "constant"
+POLYMESH_PATH = join("constant", "polyMesh")
 MESH_FILES = ("points", "owner", "neighbour", "faces", "boundary")
 
 
@@ -375,16 +376,16 @@ class FOAMCase(object):
             files_found = []
             for proc in range(self._processors):
                 files_found += [
-                    os.path.isfile(
-                        self._path + "/processor{:d}/".format(proc)
-                        + POLYMESH_PATH + mesh_file
+                    isfile(
+                        join(self._path, f"processor{proc:d}",
+                             POLYMESH_PATH, mesh_file)
                     )
                     for mesh_file in MESH_FILES
                 ]
         else:
             files_found = [
-                os.path.isfile(
-                    self._path + "/" + POLYMESH_PATH + mesh_file
+                isfile(
+                    join(self._path, POLYMESH_PATH, mesh_file)
                 )
                 for mesh_file in MESH_FILES
             ]
@@ -411,7 +412,7 @@ class FOAMCase(object):
 
         """
         if self._distributed:
-            return len(glob.glob(self._path + "/processor*"))
+            return len(glob.glob(join(self._path, "processor*")))
         else:
             return 1
 
@@ -429,8 +430,8 @@ class FOAMCase(object):
             time_path = self._path + "/processor0"
         else:
             time_path = self._path
-        dirs = [folder for folder in os.listdir(time_path) if
-                os.path.isdir(os.path.join(time_path, folder))]
+        dirs = [folder for folder in listdir(time_path) if
+                isdir(join(time_path, folder))]
         time_dirs = []
         for entry in dirs:
             try:
@@ -464,8 +465,8 @@ class FOAMCase(object):
         all_fields = {}
         for i, folder in enumerate(all_time_folders):
             all_fields[self._time_folders[i]] = [
-                field for field in os.listdir(folder)
-                if os.path.isfile(os.path.join(folder, field))
+                field for field in listdir(folder)
+                if isfile(join(folder, field))
             ]
         return all_fields
 
@@ -501,11 +502,10 @@ class FOAMCase(object):
         """
         if self._distributed:
             file_path = (
-                self._path +
-                "/processor{:d}/{:s}/{:s}".format(processor, time, field_name)
+                join(self._path, f"processor{processor:d}", time, field_name)
             )
         else:
-            file_path = self._path + "/{:s}/{:s}".format(time, field_name)
+            file_path = join(self._path, time, field_name)
         return file_path
 
 
@@ -610,7 +610,7 @@ class FOAMMesh(object):
 
         """
         n_cells = 0
-        with open(mesh_path + "owner", "rb") as file:
+        with open(join(mesh_path, "owner"), "rb") as file:
             found = False
             while not found:
                 line = file.readline()
@@ -631,7 +631,7 @@ class FOAMMesh(object):
         :rtype: pt.Tensor
 
         """
-        with open(mesh_path + "points", "rb") as file:
+        with open(join(mesh_path, "points"), "rb") as file:
             data = file.readlines()
             start, length = self._get_list_length(data[:MAX_LINE_HEADER])
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
@@ -670,7 +670,7 @@ class FOAMMesh(object):
             pad = pt.zeros((tensor.size()[0], diff), dtype=self._itype)
             return pt.cat([tensor, pad], dim=1)
 
-        with open(mesh_path + "faces", "rb") as file:
+        with open(join(mesh_path, "faces"), "rb") as file:
             data = file.readlines()
             start, length = self._get_list_length(data[:MAX_LINE_HEADER])
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
@@ -728,7 +728,7 @@ class FOAMMesh(object):
             a face
         :rtype: Tuple[pt.Tensor, pt.Tensor]
         """
-        with open(mesh_path + "owner", "rb") as file:
+        with open(join(mesh_path, "owner"), "rb") as file:
             data = file.readlines()
             start, length = self._get_list_length(data[:MAX_LINE_HEADER])
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
@@ -744,7 +744,7 @@ class FOAMMesh(object):
                     int(line[:-1]) for line in data[start:start + length]
                 ]
 
-        with open(mesh_path + "neighbour", "rb") as file:
+        with open(join(mesh_path, "neighbour"), "rb") as file:
             data = file.readlines()
             start, length = self._get_list_length(data[:MAX_LINE_HEADER])
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
@@ -774,7 +774,7 @@ class FOAMMesh(object):
         :rtype: bool
 
         """
-        return os.path.isfile(path + "C") and os.path.isfile(path + "V")
+        return isfile(path + "C") and isfile(path + "V")
 
     def _parse_cell_centers(self, path: str) -> pt.Tensor:
         """Parse cell centers from the constant directory.
@@ -785,7 +785,7 @@ class FOAMMesh(object):
         :rtype: pt.Tensor
 
         """
-        with open(path + "C", "rb") as file:
+        with open(join(path, "C"), "rb") as file:
             data = file.readlines()
             start, length = self._get_list_length(data[:MAX_LINE_HEADER])
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
@@ -813,7 +813,7 @@ class FOAMMesh(object):
         :rtype: pt.Tensor
 
         """
-        with open(path + "V", "rb") as file:
+        with open(join(path, "V"), "rb") as file:
             data = file.readlines()
             start, length = self._get_list_length(data[:MAX_LINE_HEADER])
             if self._case._is_binary(data[:MAX_LINE_HEADER]):
@@ -973,8 +973,7 @@ class FOAMMesh(object):
         if self._case._distributed:
             proc_data = []
             for proc in range(self._case._processors):
-                mesh_location = self._case._path + \
-                    "/processor{:d}/".format(proc) + POLYMESH_PATH
+                mesh_location = join(self._case._path, f"processor{proc:d}", POLYMESH_PATH)
                 proc_data.append(
                     self._compute_cell_centers_and_volumes(mesh_location)
                 )
@@ -982,16 +981,16 @@ class FOAMMesh(object):
             volumes = pt.cat(list(zip(*proc_data))[1])
         else:
             if self._centers_and_volumes_computed(
-                self._case._path + f"/{CONSTANT_PATH}"
+                join(self._case._path, CONSTANT_PATH)
             ):
                 print(
                     f"Loading precomputed cell centers and volumes from {CONSTANT_PATH}")
                 centers = self._parse_cell_centers(
-                    self._case._path + "/" + CONSTANT_PATH)
+                    join(self._case._path, CONSTANT_PATH))
                 volumes = self._parse_cell_volumes(
-                    self._case._path + "/" + CONSTANT_PATH)
+                    join(self._case._path, CONSTANT_PATH))
             else:
-                mesh_location = self._case._path + "/" + POLYMESH_PATH
+                mesh_location = join(self._case._path, POLYMESH_PATH)
                 print(
                     "Could not find precomputed cell centers and volumes.\n" +
                     "Computing cell geometry from scratch (slow, not recommended for large meshes).\n" +

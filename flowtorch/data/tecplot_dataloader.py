@@ -3,6 +3,7 @@
 
 # standard library packages
 from os.path import join
+from os import sep
 from glob import glob
 from typing import Callable, Union, List, Dict
 # third party packages
@@ -78,8 +79,8 @@ class TecplotDataloader(Dataloader):
         :rtype: TecplotDataloader
         """
         path = check_and_standardize_path(path)
-        file_paths = glob(f"{path}/{base_name}i=*t=*")
-        file_names = [f.split("/")[-1] for f in file_paths]
+        file_paths = glob(join(path,  f"{base_name}i=*t=*"))
+        file_names = [f.split(sep)[-1] for f in file_paths]
         write_times = [name.split("t=")[-1].split(suffix)[0]
                        for name in file_names]
         sorted_names = sorted(zip(write_times, file_names),
