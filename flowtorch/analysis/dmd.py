@@ -275,9 +275,9 @@ class DMD(object):
         YH = (self._modes @ pt.diag(self.eigvals)) @ \
             (pt.linalg.pinv(self._modes) @ self._X.type(self._modes.dtype))
         if self._Y.dtype in (pt.complex128, pt.complex64, pt.complex32):
-            return YH - self._Y
+            return YH - self._dm[:, 1:]
         else:
-            return YH.real.type(self._Y.dtype) - self._Y
+            return YH.real.type(self._Y.dtype) - self._dm[:, 1:]
 
     @property
     def tlsq_error(self) -> Tuple[pt.Tensor, pt.Tensor]:
