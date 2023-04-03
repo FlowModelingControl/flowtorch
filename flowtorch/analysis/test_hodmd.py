@@ -82,3 +82,10 @@ class TestHODMD():
         dx, dy = dmd.tlsq_error
         assert dx.shape == (50, cols-1)
         assert dy.shape == (50, cols-1)
+
+    def test_projection_error(self):
+        dm = pt.rand((50, 20))
+        dmd = HODMD(dm, 1.0, rank_dr=15, rank=10)
+        rows, cols = dmd._dm.shape
+        err = dmd.projection_error
+        assert err.shape == (50, cols-1)

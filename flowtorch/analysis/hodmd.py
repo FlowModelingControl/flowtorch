@@ -138,7 +138,8 @@ class HODMD(DMD):
         :return: projection error
         :rtype: pt.Tensor
         """
-        return self.svd_dr.U @ super().projection_error
+        r = self.svd_dr.rank
+        return self.svd_dr.U @ super().projection_error[:r]
 
     @property
     def tlsq_error(self) -> pt.Tensor:
