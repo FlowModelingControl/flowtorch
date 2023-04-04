@@ -86,16 +86,7 @@ class DMD(object):
         self._usecols = usecols
         if self._usecols is None:
             self._usecols = pt.tensor(range(self._cols - 1), dtype=pt.int64)
-        else:
-            if len(self._usecols) >= self._cols:
-                raise ValueError(f"Parameter usecols contains too many indices:\n" + 
-                                 f"{len(self._usecols):d} (maximum {self._cols - 1:d})"
-                )
-            if self._cols - 1 in self._usecols:
-                raise ValueError(
-                    "The parameter usecols must not contain the index of the last column; " + 
-                    "otherwise, no shifted data matrix can be built"
-                )
+        self._validate_inputs()
         if self._tlsq:
             svd = SVD(pt.vstack((self._dm[:, self._usecols], self._dm[:, self._usecols + 1])),
                       rank, robust)
@@ -110,6 +101,25 @@ class DMD(object):
             self._Y = self._dm[:, self._usecols + 1]
         self._eigvals, self._eigvecs, self._modes = self._compute_mode_decomposition()
         self._amplitude = self._compute_amplitudes()
+
+    def _validate_inputs(self):
+        """Validate input values.
+
+        :raises ValueError: if more indices than allowed are passed via usecols; the maximum
+            number of indices is one less than the number of snapshots (we still need to build a
+            shift matrix)
+        :raises ValueError: if usecols contains the index of the last snapshot; the last state
+            has no corresponding state shifted by one time step
+        """
+        if len(self._usecols) >= self._cols:
+            raise ValueError(f"Parameter usecols contains too many indices:\n" + 
+                             f"{len(self._usecols):d} (maximum {self._cols - 1:d})"
+            )
+        if self._cols - 1 in self._usecols:
+            raise ValueError(
+                "The parameter usecols must not contain the index of the last column; " + 
+                "otherwise, no shifted data matrix can be built"
+            )
 
     def _compute_operator(self):
         """Compute the approximate linear (DMD) operator.

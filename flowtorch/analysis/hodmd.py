@@ -27,11 +27,10 @@ class HODMD(DMD):
     use optimal mode coefficients
     >>> dmd = HODMD(data_matrix, dt, delay=5, rank_dr=100, optimal=True)
 
-
     """
 
     def __init__(self, data_matrix: pt.Tensor, dt: float, delay: int = None,
-                 rank_dr: int = None, **dmd_options: dict):
+                 rank_dr: int = None, svd_dr: SVD = None, **dmd_options: dict):
         """Create a HODMD instance from data matrix and time step.
 
         :param data_matrix: data matrix whose columns are formed by
@@ -49,15 +48,20 @@ class HODMD(DMD):
             the default value is not overwritten, the rank is automatically determined as
             described in :class:`flowtorch.analysis.svd.SVD`; defaults to None
         :type rank_dr: int, optional
+        :param svd_dr: pre-computed SVD for dimensionality reduction; used to avoid
+            re-computing the SVD
+        :type svd_dr: SVD, optional
 
         """
         self._dm_org = data_matrix
+        self._rows_org, self._cols_org = data_matrix.shape
         self._delay = delay
+        self._svd_dr = svd_dr
         if delay is None:
-            _, cols = data_matrix.shape
-            self._delay = int(cols / 3)
+            self._delay = int(self._cols_org / 3)
         self._validate_inputs()
-        self._svd_dr = SVD(data_matrix, rank_dr)
+        if self._svd_dr is None:
+            self._svd_dr = SVD(data_matrix, rank_dr)
         super(HODMD, self).__init__(
             self._create_time_delays(self._svd_dr.U.T @ self._dm_org),
             dt, **dmd_options
@@ -74,10 +78,9 @@ class HODMD(DMD):
             raise ValueError(
                 f"The 'delay' parameter must be a positive integer. Got {self._delay}"
             )
-        _, cols = self._dm_org.shape
-        if cols - self._delay < 1:
+        if self._cols_org - self._delay < 1:
             raise ValueError(
-                f"The number of snapshots ({cols:d}) must be larger than the number of time delays ({self._delay:d})"
+                f"The number of snapshots ({self._cols_org:d}) must be larger than the number of time delays ({self._delay:d})"
             )
 
     def _create_time_delays(self, data_matrix: pt.Tensor) -> pt.Tensor:
