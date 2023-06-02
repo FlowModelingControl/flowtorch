@@ -183,7 +183,7 @@ class DMD(object):
                                         self.frequency < f_max)
         mode_indices = pt.tensor(range(modes_in_range.shape[0]),
                                  dtype=pt.int64)[modes_in_range]
-        n = min(n, modes_in_range.shape[0])
+        n = min(n, mode_indices.shape[0])
         top_n = importance[mode_indices].abs().topk(n).indices
         return mode_indices[top_n]
 
