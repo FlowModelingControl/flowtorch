@@ -1,4 +1,4 @@
-"""Unit tests for the DMD class.
+"""Unit tests for the HODMD class.
 """
 
 # third party packages

@@ -78,6 +78,7 @@ class DMD(object):
         .. _TDMD: http://cwrowley.princeton.edu/papers/Hemati-2017a.pdf
         """
         self._dm = data_matrix
+        self._complex = self._dm.dtype in (pt.complex32, pt.complex64, pt.complex128)
         self._rows, self._cols = self._dm.shape
         self._dt = dt
         self._unitary = unitary
@@ -130,7 +131,7 @@ class DMD(object):
             U, _, VT = pt.linalg.svd(Yp @ Xp.conj().T, full_matrices=False)
             return U @ VT
         else:
-            s_inv = pt.diag(1.0 / self._svd.s)
+            s_inv = pt.diag(1.0 / self._svd.s.type(self._dm.dtype))
             return self._svd.U.conj().T @ self._Y @ self._svd.V @ s_inv
 
     def _compute_mode_decomposition(self):
@@ -183,7 +184,7 @@ class DMD(object):
                         self._modes).conj()
         else:
             P = self._modes
-            q = self._X[:, self._usecols[0]].type(P.dtype)
+            q = self._dm[:, self._usecols[0]].type(P.dtype)
         return pt.linalg.lstsq(P, q).solution
 
     def partial_reconstruction(self, mode_indices: Set[int]) -> pt.Tensor:
@@ -234,7 +235,7 @@ class DMD(object):
                                         self.frequency < f_max)
         mode_indices = pt.tensor(range(modes_in_range.shape[0]),
                                  dtype=pt.int64)[modes_in_range]
-        n = min(n, modes_in_range.shape[0])
+        n = min(n, mode_indices.shape[0])
         top_n = importance[mode_indices].abs().topk(n).indices
         return mode_indices[top_n]
 
@@ -266,6 +267,10 @@ class DMD(object):
     @property
     def eigvals(self) -> pt.Tensor:
         return self._eigvals
+    
+    @property
+    def eigvals_cont(self) -> pt.Tensor:
+        return pt.log(self._eigvals) / self._dt
 
     @property
     def eigvecs(self) -> pt.Tensor:
