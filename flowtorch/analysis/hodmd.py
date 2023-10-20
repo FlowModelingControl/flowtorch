@@ -6,6 +6,43 @@ from .svd import SVD
 from .dmd import DMD
 
 
+def _check_time_delays(delay: int, columns: int):
+    """Check if the number of time delays is valid.
+
+    :param delay: how many time delays to use
+    :type delay: int
+    :param columns: number of columns in the data matrix
+    :type columns: int
+    :raises ValueError: if delay is less than 1
+    :raises ValueError: if there are not enough snapshots for the given delay
+    """
+    if delay < 1:
+        raise ValueError(
+            f"The 'delay' parameter must be a positive integer. Got {delay}"
+        )
+    if columns - delay < 1:
+        raise ValueError(
+            f"The number of snapshots ({columns:d}) must be larger than the number of time delays ({delay:d})"
+        )
+
+
+def _create_time_delays(data_matrix: pt.Tensor, delay: int) -> pt.Tensor:
+    """Create data matrix enriched with time delays (Hankel matrix).
+    :param data_matrix: 2D data matrix with (reduced) snapshots as column
+        vectors
+    :type data_matrix: pt.Tensor
+    :param delay: number of time levels (delay coordinates) to use
+    :type delay: int
+    :return: data matrix enriched with time delays
+    :rtype: pt.Tensor
+    """
+    _, cols = data_matrix.shape
+    _check_time_delays(delay, cols)
+    return pt.cat(
+        [data_matrix[:, i:cols - (delay - i - 1)] for i in range(delay)]
+    )
+
+
 class HODMD(DMD):
     """Higher-order dynamic mode decomposition (HODMD).
 
@@ -26,7 +63,6 @@ class HODMD(DMD):
     >>> dmd = HODMD(data_matrix, dt, delay=5, rank_dr=100)
     use optimal mode coefficients
     >>> dmd = HODMD(data_matrix, dt, delay=5, rank_dr=100, optimal=True)
-
 
     """
 
@@ -52,47 +88,14 @@ class HODMD(DMD):
 
         """
         self._dm_org = data_matrix
+        self._rows_org, self._cols_org = data_matrix.shape
         self._delay = delay
         if delay is None:
-            _, cols = data_matrix.shape
-            self._delay = int(cols / 3)
-        self._validate_inputs()
+            self._delay = int(self._cols_org / 3)
         self._svd_dr = SVD(data_matrix, rank_dr)
         super(HODMD, self).__init__(
-            self._create_time_delays(self._svd_dr.U.T @ self._dm_org),
+            _create_time_delays(self._svd_dr.U.T @ self._dm_org),
             dt, **dmd_options
-        )
-
-    def _validate_inputs(self):
-        """Validate input values.
-
-        :raises ValueError: if delay is less than 1
-        :raises ValueError: if there are not enough snapshots for the given
-            value of delay; after the embedding, at least two columns must remain
-        """
-        if self._delay < 1:
-            raise ValueError(
-                f"The 'delay' parameter must be a positive integer. Got {self._delay}"
-            )
-        _, cols = self._dm_org.shape
-        if cols - self._delay < 1:
-            raise ValueError(
-                f"The number of snapshots ({cols:d}) must be larger than the number of time delays ({self._delay:d})"
-            )
-
-    def _create_time_delays(self, data_matrix: pt.Tensor) -> pt.Tensor:
-        """Create data matrix enriched with time delays (Hankel matrix).
-
-        :param data_matrix: 2D data matrix with (reduced) snapshots as column
-            vectors
-        :type data_matrix: pt.Tensor
-        :return: data matrix enriched with time delays
-        :rtype: pt.Tensor
-        """
-        rows, cols = data_matrix.shape
-        d = self._delay
-        return pt.cat(
-            [data_matrix[:, i:cols - (d - i - 1)] for i in range(d)]
         )
 
     @property

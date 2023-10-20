@@ -39,7 +39,7 @@ class DMD(object):
 
     def __init__(self, data_matrix: pt.Tensor, dt: float, rank: int = None,
                  robust: Union[bool, dict] = False, unitary: bool = False,
-                 optimal: bool = False, tlsq=False):
+                 optimal: bool = False, tlsq: bool = False, usecols: pt.Tensor = None):
         """Create DMD instance based on data matrix and time step. 
 
         :param data_matrix: data matrix whose columns are formed by the individual snapshots
@@ -65,6 +65,11 @@ class DMD(object):
             automatically or specified by the `rank` parameter; more information can be
             found in the TDMD_ article by M. Hemati et al.
         :type tlsq: bool, optional
+        :param usecols: tensor of column indices to build data matrix X and shifted
+            data matrix Y; used to implement bagging and ensemble DMD; if not specified,
+            X and Y are based on all but the last and all but the first columns, respectively;
+            the column indices are expected to be in ascending order
+        :type usecols: pt.Tensor, optional
 
 
         .. _piDMD: https://github.com/baddoo/piDMD
@@ -73,24 +78,49 @@ class DMD(object):
         .. _TDMD: http://cwrowley.princeton.edu/papers/Hemati-2017a.pdf
         """
         self._dm = data_matrix
+        self._complex = self._dm.dtype in (pt.complex32, pt.complex64, pt.complex128)
+        self._rows, self._cols = self._dm.shape
         self._dt = dt
         self._unitary = unitary
         self._optimal = optimal
         self._tlsq = tlsq
+        self._usecols = usecols
+        if self._usecols is None:
+            self._usecols = pt.tensor(range(self._cols - 1), dtype=pt.int64)
+        self._validate_inputs()
         if self._tlsq:
-            svd = SVD(pt.vstack((self._dm[:, :-1], self._dm[:, 1:])),
+            svd = SVD(pt.vstack((self._dm[:, self._usecols], self._dm[:, self._usecols + 1])),
                       rank, robust)
             P = svd.V @ svd.V.conj().T
-            self._X = self._dm[:, :-1] @ P
-            self._Y = self._dm[:, 1:] @ P
+            self._X = self._dm[:, self._usecols] @ P
+            self._Y = self._dm[:, self._usecols + 1] @ P
             self._svd = SVD(self._X, svd.rank)
             del svd
         else:
-            self._svd = SVD(self._dm[:, :-1], rank, robust)
-            self._X = self._dm[:, :-1]
-            self._Y = self._dm[:, 1:]
+            self._svd = SVD(self._dm[:, self._usecols], rank, robust)
+            self._X = self._dm[:, self._usecols]
+            self._Y = self._dm[:, self._usecols + 1]
         self._eigvals, self._eigvecs, self._modes = self._compute_mode_decomposition()
         self._amplitude = self._compute_amplitudes()
+
+    def _validate_inputs(self):
+        """Validate input values.
+
+        :raises ValueError: if more indices than allowed are passed via usecols; the maximum
+            number of indices is one less than the number of snapshots (we still need to build a
+            shift matrix)
+        :raises ValueError: if usecols contains the index of the last snapshot; the last state
+            has no corresponding state shifted by one time step
+        """
+        if len(self._usecols) >= self._cols:
+            raise ValueError(f"Parameter usecols contains too many indices:\n" + 
+                             f"{len(self._usecols):d} (maximum {self._cols - 1:d})"
+            )
+        if self._cols - 1 in self._usecols:
+            raise ValueError(
+                "The parameter usecols must not contain the index of the last column; " + 
+                "otherwise, no shifted data matrix can be built"
+            )
 
     def _compute_operator(self):
         """Compute the approximate linear (DMD) operator.
@@ -101,7 +131,7 @@ class DMD(object):
             U, _, VT = pt.linalg.svd(Yp @ Xp.conj().T, full_matrices=False)
             return U @ VT
         else:
-            s_inv = pt.diag(1.0 / self._svd.s)
+            s_inv = pt.diag(1.0 / self._svd.s.type(self._dm.dtype))
             return self._svd.U.conj().T @ self._Y @ self._svd.V @ s_inv
 
     def _compute_mode_decomposition(self):
@@ -115,6 +145,28 @@ class DMD(object):
             @ s_inv.type(val.dtype) @ vec
         )
         return val, vec, phi
+    
+    def _compute_vander_mode_matrix(self):
+        """Compute the Vandermode matrix.
+
+        The Vandermode matrix is useful to evaluate the DMD prediction in
+        one shot/one matrix multiplication. This option is useful to
+        compute optimized amplitudes or to evaluate the modes' dynamics.
+        If the full data matrix is used, the Vandermode matrix is easily
+        computed using torch.vander; however, if only selected columns
+        are used to fit the DMD operator, the corresponding matrix must
+        be built manually (by looping).        
+        """
+        if len(self._usecols) == self._cols - 1:
+            return pt.vander(self.eigvals, self._cols - 1, True)
+        else:
+            exponents = self._usecols - self._usecols.min()
+            vander = pt.zeros(
+                (self.eigvals.shape[0], exponents.shape[0]), dtype=self.eigvals.dtype
+            )
+            for i, e in enumerate(exponents):
+                vander[:, i] = self.eigvals**e
+            return vander
 
     def _compute_amplitudes(self):
         """Compute amplitudes for exact DMD modes.
@@ -125,14 +177,14 @@ class DMD(object):
         in the constructor for more information).
         """
         if self._optimal:
-            vander = pt.vander(self.eigvals, self._dm.shape[-1], True)
+            vander = self._compute_vander_mode_matrix()
             P = (self._modes.conj().T @ self._modes) * \
                 (vander @ vander.conj().T).conj()
-            q = pt.diag(vander @ self._dm.type(P.dtype).conj().T @
+            q = pt.diag(vander @ self._X.type(P.dtype).conj().T @
                         self._modes).conj()
         else:
             P = self._modes
-            q = self._X[:, 0].type(P.dtype)
+            q = self._dm[:, self._usecols[0]].type(P.dtype)
         return pt.linalg.lstsq(P, q).solution
 
     def partial_reconstruction(self, mode_indices: Set[int]) -> pt.Tensor:
@@ -215,6 +267,10 @@ class DMD(object):
     @property
     def eigvals(self) -> pt.Tensor:
         return self._eigvals
+    
+    @property
+    def eigvals_cont(self) -> pt.Tensor:
+        return pt.log(self._eigvals) / self._dt
 
     @property
     def eigvecs(self) -> pt.Tensor:
@@ -234,7 +290,7 @@ class DMD(object):
 
     @property
     def dynamics(self) -> pt.Tensor:
-        return pt.diag(self.amplitude) @ pt.vander(self.eigvals, self._dm.shape[-1], True)
+        return pt.diag(self.amplitude) @ self._compute_vander_mode_matrix()
 
     @property
     def integral_contribution(self) -> pt.Tensor:
@@ -263,7 +319,7 @@ class DMD(object):
         :return: difference between reconstruction and data matrix
         :rtype: pt.Tensor
         """
-        return self.reconstruction - self._dm
+        return self.reconstruction - self._dm[:, self._usecols]
 
     @property
     def projection_error(self) -> pt.Tensor:
@@ -275,9 +331,9 @@ class DMD(object):
         YH = (self._modes @ pt.diag(self.eigvals)) @ \
             (pt.linalg.pinv(self._modes) @ self._X.type(self._modes.dtype))
         if self._Y.dtype in (pt.complex128, pt.complex64, pt.complex32):
-            return YH - self._dm[:, 1:]
+            return YH - self._dm[:, self._usecols + 1]
         else:
-            return YH.real.type(self._Y.dtype) - self._dm[:, 1:]
+            return YH.real.type(self._Y.dtype) - self._dm[:, self._usecols + 1]
 
     @property
     def tlsq_error(self) -> Tuple[pt.Tensor, pt.Tensor]:
@@ -288,7 +344,7 @@ class DMD(object):
         """
         if not self._tlsq:
             print("Warning: noise is only removed if tlsq=True")
-        return self._dm[:, :-1] - self._X, self._dm[:, 1:] - self._Y
+        return self._dm[:, self._usecols] - self._X, self._dm[:, self._usecols + 1] - self._Y
 
     def __repr__(self):
         return f"{self.__class__.__qualname__}(data_matrix, rank={self._svd.rank})"
