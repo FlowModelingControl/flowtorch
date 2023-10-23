@@ -94,7 +94,7 @@ class HODMD(DMD):
             self._delay = int(self._cols_org / 3)
         self._svd_dr = SVD(data_matrix, rank_dr)
         super(HODMD, self).__init__(
-            _create_time_delays(self._svd_dr.U.T @ self._dm_org),
+            _create_time_delays(self._svd_dr.U.T @ self._dm_org, self._delay),
             dt, **dmd_options
         )
 

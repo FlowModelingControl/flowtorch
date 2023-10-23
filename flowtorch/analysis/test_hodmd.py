@@ -5,7 +5,37 @@
 import pytest
 import torch as pt
 # flowtorch packages
-from .hodmd import HODMD
+from .hodmd import HODMD, _create_time_delays
+
+
+def test_create_time_delays():
+    dm = pt.tensor(
+        [
+            [1, 2, 3, 4],
+            [5, 6, 7, 8]
+        ], dtype=pt.float32
+    )
+    assert pt.allclose(_create_time_delays(dm, 1), dm)
+    expected = pt.tensor(
+        [
+            [1, 2, 3],
+            [5, 6, 7],
+            [2, 3, 4],
+            [6, 7, 8]
+        ], dtype=pt.float32
+    )
+    assert pt.allclose(_create_time_delays(dm, 2), expected)
+    expected = pt.tensor(
+        [
+            [1, 2],
+            [5, 6],
+            [2, 3],
+            [6, 7],
+            [3, 4],
+            [7, 8]
+        ], dtype=pt.float32
+    )
+    assert pt.allclose(_create_time_delays(dm, 3), expected)
 
 
 class TestHODMD():
@@ -30,38 +60,6 @@ class TestHODMD():
         assert dmd._optimal == True
         assert dmd.svd_dr.rank == 10
         assert dmd.svd.rank == 5
-
-    def test_create_time_delays(self):
-        dm = pt.tensor(
-            [
-                [1, 2, 3, 4],
-                [5, 6, 7, 8]
-            ], dtype=pt.float32
-        )
-        dmd = HODMD(dm, 1.0, delay=1)
-        assert pt.allclose(dmd._create_time_delays(dm), dm)
-        expected = pt.tensor(
-            [
-                [1, 2, 3],
-                [5, 6, 7],
-                [2, 3, 4],
-                [6, 7, 8]
-            ], dtype=pt.float32
-        )
-        dmd = HODMD(dm, 1.0, delay=2)
-        assert pt.allclose(dmd._create_time_delays(dm), expected)
-        expected = pt.tensor(
-            [
-                [1, 2],
-                [5, 6],
-                [2, 3],
-                [6, 7],
-                [3, 4],
-                [7, 8]
-            ], dtype=pt.float32
-        )
-        dmd = HODMD(dm, 1.0, delay=3)
-        assert pt.allclose(dmd._create_time_delays(dm), expected)
 
     def test_modes(self):
         dm = pt.rand((50, 20))
