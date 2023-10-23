@@ -6,18 +6,17 @@ import pytest
 import torch as pt
 # flowtorch packages
 from flowtorch import DATASETS
-from flowtorch.data import TAUDataloader, TAUConfig
-
-
-SOLUTION_PREFIX_KEY = "solution_prefix"
-GRID_FILE_KEY = "primary_grid"
-GRID_PREFIX_KEY = "grid_prefix"
-N_DOMAINS_KEY = "n_domains"
+from flowtorch.data import TAUDataloader, TAUSurfaceDataloader, TAUConfig
+from flowtorch.data.tau_dataloader import (
+    SOLUTION_PREFIX_KEY, GRID_FILE_KEY, GRID_PREFIX_KEY, N_DOMAINS_KEY,
+    BMAP_FILE_KEY
+)
 
 
 class TestTAUConfig():
     path_0 = DATASETS["tau_backward_facing_step"]
     path_1 = DATASETS["tau_cylinder_2D"]
+    path_2 = DATASETS["tau_surface_wing"]
     file_name = "simulation.para"
 
     def test_init(self):
@@ -39,6 +38,24 @@ class TestTAUConfig():
         n_mg = config._parse_config("Number of multigrid levels")
         assert n_mg == "1"
 
+    def test_parse_bmap(self):
+        # backward facing step
+        config = TAUConfig(join(self.path_0, self.file_name))
+        bmap = config._parse_bmap()
+        bmap_ref = {"stepwall": [5]}
+        assert all([bmap[key] == bmap_ref[key] for key in bmap_ref.keys()])
+        # wing surface
+        config = TAUConfig(join(self.path_2, self.file_name))
+        bmap = config._parse_bmap()
+        bmap_ref = {
+            "WingUpper": [1, 7],
+            "WingLower": [2],
+            "WingTE": [3],
+            "WingTipRight": [4],
+            "WingTipLeft": [5]
+        }
+        assert all([bmap[key] == bmap_ref[key] for key in bmap_ref.keys()])
+
     def test_gather_config(self):
         # backward facing step
         config = TAUConfig(join(self.path_0, self.file_name))
@@ -47,6 +64,7 @@ class TestTAUConfig():
         assert config_values[GRID_FILE_KEY] == "grid_files/PW_DES-HybQuadTRex-v2_yp-50_s1.15_ny67.grd"
         assert config_values[GRID_PREFIX_KEY] == "grid_files/distributed/dual"
         assert config_values[N_DOMAINS_KEY] == 96
+        assert "stepwall" in config_values[BMAP_FILE_KEY].keys()
         # 2D flow past a cylinder
         config = TAUConfig(join(self.path_1, self.file_name))
         config_values = config.config
@@ -54,6 +72,7 @@ class TestTAUConfig():
         assert config_values[GRID_FILE_KEY] == "cylinder_scaled.grid"
         assert config_values[GRID_PREFIX_KEY] == "dualgrid/dual"
         assert config_values[N_DOMAINS_KEY] == 16
+        assert "cylinder" in config_values[BMAP_FILE_KEY].keys()
 
 
 class TestTAUDataloader():
@@ -183,3 +202,67 @@ class TestTAUDataloader():
                                           [times[0], times[0]])
         assert density.shape == (n_points, 2)
         assert p.shape == (n_points, 2)
+
+
+class TestTAUSurfaceDataloader:
+    path_0 = DATASETS["tau_surface_wing"]
+    file_name = "simulation.para"
+
+    def test_decompose_file_name(self):
+        loader = TAUSurfaceDataloader(join(self.path_0, self.file_name))
+        time_iter = loader._decompose_file_name()
+        times = [f"{d}.000e+00" for d in range(1, 10)] + ["1.000e+01"]
+        assert len(time_iter.keys()) == len(times)
+        assert sorted(list(time_iter.keys())) == sorted(times)
+        assert time_iter["1.000e+01"] == "100"
+
+    def test_zone_property(self):
+        loader = TAUSurfaceDataloader(join(self.path_0, self.file_name))
+        zones = loader.zone_names
+        zones_ref = ["WingUpper", "WingLower",
+                     "WingTE", "WingTipRight", "WingTipLeft"]
+        assert sorted(zones) == sorted(zones_ref)
+        assert loader.zone == zones[0]
+        loader.zone = zones_ref[-1]
+        assert loader.zone == zones_ref[-1]
+        loader.zone = "Does not exist"
+        assert loader.zone == zones_ref[-1]
+
+    def test_load_zone_ids(self):
+        loader = TAUSurfaceDataloader(join(self.path_0, self.file_name))
+        zone_ids = loader.zone_ids
+        assert len(zone_ids.keys()) == 5
+        assert all([len(zone_ids[key]) > 0 for key in zone_ids.keys()])
+
+    def test_load_mesh_data(self):
+        loader = TAUSurfaceDataloader(join(self.path_0, self.file_name))
+        mesh_data = loader.mesh_data
+        assert len(mesh_data.keys()) == 5
+        last_zone = loader.zone_names[-1]
+        loader.zone = last_zone
+        assert loader.vertices.shape == (mesh_data[last_zone].size(0), 3)
+        assert loader.weights.shape == (mesh_data[last_zone].size(0),)
+
+    def test_field_names(self):
+        loader = TAUSurfaceDataloader(join(self.path_0, self.file_name))
+        times = loader.write_times
+        field_names = loader.field_names
+        assert len(field_names.keys()) == len(times)
+        names = field_names[times[0]]
+        expected = ("x_velocity", "y_velocity", "z_velocity", "cp", "cf")
+        assert all([name in names for name in expected])
+
+    def test_load_single_snapshot(self):
+        loader = TAUSurfaceDataloader(join(self.path_0, self.file_name))
+        weights = loader.weights
+        time = loader.write_times[0]
+        cp = loader._load_single_snapshot("cp", time)
+        assert cp.shape == weights.shape
+
+    def test_load_snapshot(self):
+        loader = TAUSurfaceDataloader(join(self.path_0, self.file_name))
+        weights = loader.weights
+        times = loader.write_times[:2]
+        cp, cf = loader.load_snapshot(["cp", "cf"], times)
+        assert cp.shape == (weights.size(0), len(times))
+        assert cf.shape == (weights.size(0), len(times))

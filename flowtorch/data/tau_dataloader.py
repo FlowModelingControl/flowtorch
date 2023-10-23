@@ -9,8 +9,10 @@ to snapshot data.
 
 """
 # standard library packages
+from abc import abstractmethod
 from os.path import join, split
 from glob import glob
+from collections import defaultdict
 from typing import List, Dict, Tuple, Union, Set
 # third party packages
 from netCDF4 import Dataset
@@ -21,6 +23,7 @@ from .dataloader import Dataloader
 from .utils import check_list_or_str, check_and_standardize_path
 
 VOL_SOLUTION_NAME = ".pval.unsteady_"
+SURF_SOLUTION_NAME = ".surface.pval.unsteady_"
 PSOLUTION_POSTFIX = ".domain_"
 PMESH_NAME = "domain_{:s}_grid_1"
 PVERTEX_KEY = "pcoord"
@@ -36,6 +39,7 @@ SOLUTION_PREFIX_KEY = "solution_prefix"
 GRID_FILE_KEY = "primary_grid"
 GRID_PREFIX_KEY = "grid_prefix"
 N_DOMAINS_KEY = "n_domains"
+BMAP_FILE_KEY = "bmap_file"
 
 
 class TAUConfig(object):
@@ -76,6 +80,52 @@ class TAUConfig(object):
                 return line.split(CONFIG_SEP)[-1].split(COMMENT_CHAR)[0].strip()
         return ""
 
+    def _parse_bmap(self) -> dict:
+        """Load and/or parse boundary mapping.
+
+        The boundary mapping is required to load TAU surface data; the parameter
+        file either contains the boundary mapping or it points to an external file
+        containing the mapping. The mapping associates boundary name, e.g., 'farfield',
+        with one or more integer values (markers), which are needed to
+        locate the boundary field in the NetCFD output file.
+
+        Note: this function was first implemented by Sebastian Spinner (DLR)
+        and then refactored and merged into flowTorch.
+
+        :return: dictionary with the keys being the zone (patch) names and the key
+            being a list of markers
+        :rtype: dict
+        """
+        filename = self._parse_config("Boundary mapping filename")
+        if filename == "(thisfile)":
+            content = self._file_content
+        else:
+            with open(join(self._path, filename), "r") as bfile:
+                content = bfile.readlines()
+        bmap = {}
+        for i, line in enumerate(content):
+            if "Markers" in line:
+                markers = line.split(
+                    CONFIG_SEP)[-1].split(COMMENT_CHAR)[0].split(",")
+                markers = [int(m) for m in markers]
+                block_end_found = False
+                write_surface_data = False
+                j = i
+                while not block_end_found:
+                    j += 1
+                    if "Write surface data (0/1)" in content[j]:
+                        write_surface_data = True
+                    elif "Name" in content[j]:
+                        name = content[j].split(
+                            CONFIG_SEP)[-1].split(COMMENT_CHAR)[0].strip()
+                    elif "block end" in content[j]:
+                        block_end_found = True
+                    else:
+                        continue
+                if block_end_found and write_surface_data:
+                    bmap[name] = markers
+        return bmap
+
     def _gather_config(self):
         """Gather all required configuration values.
         """
@@ -84,6 +134,7 @@ class TAUConfig(object):
         config[GRID_FILE_KEY] = self._parse_config("Primary grid filename")
         config[GRID_PREFIX_KEY] = self._parse_config("Grid prefix")
         config[N_DOMAINS_KEY] = int(self._parse_config("Number of domains"))
+        config[BMAP_FILE_KEY] = self._parse_bmap()
         self._config = config
 
     @property
@@ -97,7 +148,111 @@ class TAUConfig(object):
         return self._config
 
 
-class TAUDataloader(Dataloader):
+class TAUBase(Dataloader):
+    """Base class with shared functionality of TAU Dataloaders.
+    """
+
+    def __init__(self, parameter_file: str, distributed: bool = False,
+                 dtype: str = DEFAULT_DTYPE):
+        self._para = TAUConfig(parameter_file)
+        self._distributed = distributed
+        self._dtype = dtype
+        self._mesh_data = None
+        self._solution_name = None
+
+    def _decompose_file_name(self) -> Dict[str, str]:
+        """Extract write time and iteration from file name.
+
+        :raises FileNotFoundError: if no solution files are found
+        :return: dictionary with write times as keys and the corresponding
+            iterations as values
+        :rtype: Dict[str, str]
+        """
+        base = join(self._para.path, self._para.config[SOLUTION_PREFIX_KEY])
+        base += self._solution_name
+        suffix = f"{PSOLUTION_POSTFIX}0" if self._distributed else "e???"
+        files = glob(f"{base}i=*t=*{suffix}")
+        if len(files) < 1:
+            raise FileNotFoundError(
+                f"Could not find solution files in {self._sol_path}/")
+        time_iter = {}
+        split_at = PSOLUTION_POSTFIX if self._distributed else " "
+        for f in files:
+            t = f.split("t=")[-1].split(split_at)[0]
+            i = f.split("i=")[-1].split("_t=")[0]
+            time_iter[t] = i
+        return time_iter
+
+    def _file_name(self, time: str, suffix: str = "") -> str:
+        """Create solution file name from write time.
+
+        :param time: snapshot write time
+        :type time: str
+        :param suffix: suffix to append to the file name; used for decomposed
+            simulations
+        :type suffix: str, optional
+        :return: name of solution file
+        :rtype: str
+        """
+        itr = self._time_iter[time]
+        path = join(self._para.path, self._para.config[SOLUTION_PREFIX_KEY])
+        return f"{path}{self._solution_name}i={itr}_t={time}{suffix}"
+
+    @abstractmethod
+    def _load_single_snapshot(self, field_name: str, time: str) -> pt.Tensor:
+        """Load a single snapshot of a single field from the netCDF4 file(s).
+
+        :param field_name: name of the field
+        :type field_name: str
+        :param time: snapshot write time
+        :type time: str
+        :return: tensor holding the field values
+        :rtype: pt.Tensor
+        """
+        pass
+
+    @abstractmethod
+    def _load_mesh_data(self):
+        """Load mesh vertices and cell volumes/areas.
+
+        The mesh data is saved as class member `_mesh_data`. The tensor has the
+        dimension n_points x 4; the first three columns correspond to the x/y/z
+        coordinates, and the 4th column contains the volumes/areas.
+        """
+    pass
+
+    def load_snapshot(self, field_name: Union[List[str], str],
+                      time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
+        check_list_or_str(field_name, "field_name")
+        check_list_or_str(time, "time")
+        # load multiple fields
+        if isinstance(field_name, list):
+            if isinstance(time, list):
+                return [
+                    pt.stack([self._load_single_snapshot(field, t)
+                              for t in time], dim=-1)
+                    for field in field_name
+                ]
+            else:
+                return [
+                    self._load_single_snapshot(field, time) for field in field_name
+                ]
+        # load single field
+        else:
+            if isinstance(time, list):
+                return pt.stack(
+                    [self._load_single_snapshot(field_name, t) for t in time],
+                    dim=-1
+                )
+            else:
+                return self._load_single_snapshot(field_name, time)
+
+    @property
+    def write_times(self) -> List[str]:
+        return sorted(list(self._time_iter.keys()), key=float)
+
+
+class TAUDataloader(TAUBase):
     """Load TAU simulation data.
 
     The loader is currently limited to read:
@@ -137,49 +292,9 @@ class TAUDataloader(Dataloader):
         :param dtype: tensor type, defaults to DEFAULT_DTYPE
         :type dtype: str, optional
         """
-        self._para = TAUConfig(parameter_file)
-        self._distributed = distributed
-        self._dtype = dtype
+        super(TAUDataloader, self).__init__(parameter_file, dtype)
+        self._solution_name = VOL_SOLUTION_NAME
         self._time_iter = self._decompose_file_name()
-        self._mesh_data = None
-
-    def _decompose_file_name(self) -> Dict[str, str]:
-        """Extract write time and iteration from file name.
-
-        :raises FileNotFoundError: if no solution files are found
-        :return: dictionary with write times as keys and the corresponding
-            iterations as values
-        :rtype: Dict[str, str]
-        """
-        base = join(self._para.path, self._para.config[SOLUTION_PREFIX_KEY])
-        base += VOL_SOLUTION_NAME
-        suffix = f"{PSOLUTION_POSTFIX}0" if self._distributed else "e???"
-        files = glob(f"{base}i=*t=*{suffix}")
-        if len(files) < 1:
-            raise FileNotFoundError(
-                f"Could not find solution files in {self._sol_path}/")
-        time_iter = {}
-        split_at = PSOLUTION_POSTFIX if self._distributed else " "
-        for f in files:
-            t = f.split("t=")[-1].split(split_at)[0]
-            i = f.split("i=")[-1].split("_t=")[0]
-            time_iter[t] = i
-        return time_iter
-
-    def _file_name(self, time: str, suffix: str = "") -> str:
-        """Create solution file name from write time.
-
-        :param time: snapshot write time
-        :type time: str
-        :param suffix: suffix to append to the file name; used for decomposed
-            simulations
-        :type suffix: str, optional
-        :return: name of solution file
-        :rtype: str
-        """
-        itr = self._time_iter[time]
-        path = join(self._para.path, self._para.config[SOLUTION_PREFIX_KEY])
-        return f"{path}{VOL_SOLUTION_NAME}i={itr}_t={time}{suffix}"
 
     def _load_domain_mesh_data(self, pid: str) -> pt.Tensor:
         """Load vertices and volumes for a single processor domain.
@@ -268,37 +383,6 @@ class TAUDataloader(Dataloader):
                     data.variables[field_name][:], dtype=self._dtype)
         return field
 
-    def load_snapshot(self, field_name: Union[List[str], str],
-                      time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
-        check_list_or_str(field_name, "field_name")
-        check_list_or_str(time, "time")
-
-        # load multiple fields
-        if isinstance(field_name, list):
-            if isinstance(time, list):
-                return [
-                    pt.stack([self._load_single_snapshot(field, t)
-                              for t in time], dim=-1)
-                    for field in field_name
-                ]
-            else:
-                return [
-                    self._load_single_snapshot(field, time) for field in field_name
-                ]
-        # load single field
-        else:
-            if isinstance(time, list):
-                return pt.stack(
-                    [self._load_single_snapshot(field_name, t) for t in time],
-                    dim=-1
-                )
-            else:
-                return self._load_single_snapshot(field_name, time)
-
-    @property
-    def write_times(self) -> List[str]:
-        return sorted(list(self._time_iter.keys()), key=float)
-
     @property
     def field_names(self) -> Dict[str, List[str]]:
         """Find available fields in solution files.
@@ -338,3 +422,189 @@ class TAUDataloader(Dataloader):
         if self._mesh_data is None:
             self._load_mesh_data()
         return self._mesh_data[:, 3]
+
+
+class TAUSurfaceDataloader(TAUBase):
+    """Load TAU surface data.
+
+    The loader is currently limited to read and parse reconstructed/'gathered'
+    surface data from a NetCFD4 container.
+
+    Note: the functionality of this class was first implemented by
+        Sebastian Spinner (DLR) and then refactored and merged into flowTorch.
+
+    Examples
+
+    >>> from os.path import join
+    >>> from flowtorch import DATASETS
+    >>> from flowtorch.data import TAUDataloader
+    >>> path = DATASETS["tau_wing_surface"]
+    >>> loader = TAUDataloader(join(path, "simulation.para"))
+    >>> loader.zone_names
+    ['WingUpper', 'WingLower', 'WingTE', 'WingTipRight', 'WingTipLeft']
+    >>> loader.zone = 'WingLower'
+    >>> times = loader.write_times
+    >>> fields = loader.field_names[times[0]]
+    >>> fields
+    ['x_velocity', 'y_velocity', ...]
+    >>> cp_lower = loader.load_snapshot("cp", times)
+
+    """
+
+    def __init__(self, parameter_file: str, dtype: str = DEFAULT_DTYPE):
+        super().__init__(parameter_file, False, dtype)
+        self._solution_name = SURF_SOLUTION_NAME
+        self._time_iter = self._decompose_file_name()
+        self._zone = self.zone_names[0]
+        self._zone_ids = None
+
+    def _load_zone_ids(self):
+        """Load global vertex/field indices of zones.
+
+        TAU surface meshes consist of triangles and/or quadrilaterals. The grid
+        file contains lists of global point ids that form individual elements.
+        For example, a surface mesh consisting of three triangular elements could
+        be described by the tensor [[5, 2, 1], [1, 4, 6], [2, 3, 5]], where the
+        first triangle would be formed by the points with id 5, 2, and 1. Each
+        element also comes with a boundary marker encoding the zone the element
+        belongs to. If a zone contains both triangular and quadrilateral elements,
+        the merged list of all elements is ordered such that all triangles come first.
+        """
+        path = join(self._para.path, self._para.config[GRID_FILE_KEY])
+        with Dataset(path) as data:
+            boundary_markers = pt.tensor(
+                data.variables["boundarymarker_of_surfaces"][:], dtype=int)
+            surface_tri, surface_quad = None, None
+            surface_tri_key = "points_of_surfacetriangles"
+            if surface_tri_key in data.variables.keys():
+                surface_tri = pt.tensor(
+                    data.variables[surface_tri_key][:], dtype=int)
+            surface_quad_key = "points_of_surfacequadrilaterals"
+            if surface_quad_key in data.variables.keys():
+                surface_quad = pt.tensor(
+                    data.variables[surface_quad_key][:], dtype=int)
+            self._zone_ids = {}
+            for zone_name, zone_markers in self._para.config[BMAP_FILE_KEY].items():
+                marker_selection = pt.isin(
+                    boundary_markers, pt.tensor(zone_markers))
+                if surface_tri is not None and surface_quad is not None:
+                    expanded = pt.empty((surface_tri.size(0), 4))
+                    expanded[:, :3] = surface_tri
+                    expanded[:, 3] = float("nan")
+                    merged = pt.unique(
+                        pt.cat((expanded, surface_quad), dim=0)[marker_selection].flatten())
+                    self._zone_ids[zone_name] = merged[~pt.isnan(
+                        merged)].type(pt.int64)
+                    del expanded, merged
+                elif surface_tri is not None:
+                    self._zone_ids[zone_name] = pt.unique(
+                        surface_tri[boundary_markers].flatten()
+                    ).type(pt.int64)
+                else:
+                    self._zone_ids[zone_name] = pt.unique(
+                        surface_quad[boundary_markers].flatten()
+                    ).type(pt.int64)
+
+    def _load_mesh_data(self):
+        """Load mesh vertices for all zones.
+
+        The mesh data is saved as class member `_mesh_data`. The tensor for each zone
+        has the dimension n_points x 4; the first three columns correspond to the x/y/z
+        coordinates. Loading or computing the face area is currently not implemented;
+        instead, the weight of each element is set to unity.
+        """
+        path = join(self._para.path, self._para.config[GRID_FILE_KEY])
+        with Dataset(path) as data:
+            vertices = pt.stack(
+                [pt.tensor(data[key][:], dtype=self._dtype)
+                 for key in VERTEX_KEYS],
+                dim=-1
+            )
+            self._mesh_data = {}
+            for zone_name, zone_ids in self.zone_ids.items():
+                self._mesh_data[zone_name] = pt.ones(
+                    (zone_ids.size(0), 4), dtype=self._dtype)
+                self._mesh_data[zone_name][:, :3] = vertices[zone_ids]
+
+    def _load_single_snapshot(self, field_name: str, time: str) -> pt.Tensor:
+        with Dataset(self._file_name(time)) as data:
+            ids = self.zone_ids[self.zone].numpy()
+            field = pt.tensor(
+                data.variables[field_name][ids], dtype=self._dtype)
+        return field
+
+    @property
+    def field_names(self) -> Dict[str, List[str]]:
+        """Find available fields in solution files.
+
+        Available fields are determined by matching the number of
+        weights with the length of datasets in the available
+        solution files; for distributed cases, the fields are only
+        determined based on *domain_0*.
+
+        :return: dictionary with time as key and list of
+            available solution fields as value
+        :rtype: Dict[str, List[str]]
+        """
+        self._field_names = defaultdict(list)
+        n_points = pt.unique(
+            pt.cat([ids for ids in self.zone_ids.values()])).size(0)
+        for time in self.write_times:
+            with Dataset(self._file_name(time)) as data:
+                for key in data.variables.keys():
+                    if data[key].shape[0] == n_points:
+                        self._field_names[time].append(key)
+        return self._field_names
+
+    @property
+    def mesh_data(self) -> Dict[str, pt.Tensor]:
+        if self._mesh_data is None:
+            self._load_mesh_data()
+        return self._mesh_data
+
+    @property
+    def vertices(self) -> pt.Tensor:
+        return self.mesh_data[self.zone][:, :3]
+
+    @property
+    def weights(self) -> pt.Tensor:
+        return self.mesh_data[self.zone][:, 3]
+
+    @property
+    def zone_ids(self) -> Dict[str, pt.Tensor]:
+        if self._zone_ids is None:
+            self._load_zone_ids()
+        return self._zone_ids
+
+    @property
+    def zone_names(self) -> List[str]:
+        """Names of available blocks/zones.
+
+        :return: block/zone names
+        :rtype: List[str]
+        """
+        return list(self._para.config[BMAP_FILE_KEY].keys())
+
+    @property
+    def zone(self) -> str:
+        """Currently selected block/zone.
+
+        :return: block/zone name
+        :rtype: str
+        """
+        return self._zone
+
+    @zone.setter
+    def zone(self, value: str):
+        """Select active block/zone.
+
+        The selected block remains unchanged if an invalid block name is passed.
+
+        :param value: name of block to select
+        :type value: str
+        """
+        if value in self.zone_names:
+            self._zone = value
+        else:
+            print(f"Zone '{value}' not found. Available zones are:")
+            print(self.zone_names)
