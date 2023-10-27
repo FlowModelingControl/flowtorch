@@ -17,7 +17,6 @@ from typing import List, Dict, Tuple, Union, Set
 # third party packages
 from netCDF4 import Dataset
 import torch as pt
-import numpy as np
 # flowtorch packages
 from flowtorch import DEFAULT_DTYPE
 from .dataloader import Dataloader
@@ -532,8 +531,8 @@ class TAUSurfaceDataloader(TAUBase):
 
     def _load_single_snapshot(self, field_name: str, time: str) -> pt.Tensor:
         with Dataset(self._file_name(time)) as data:
-            global_ids = np.array(data.variables["global_id"][:])
-            ids = np.where(np.isin(global_ids, self.zone_ids[self.zone].numpy()))
+            global_ids = pt.from_numpy(data.variables["global_id"][:])
+            ids = pt.where(pt.isin(global_ids, self.zone_ids[self.zone]))[0].numpy()
             field = pt.tensor(
                 data.variables[field_name][:], dtype=self._dtype)
         return field[ids]
