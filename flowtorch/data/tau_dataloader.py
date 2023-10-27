@@ -69,16 +69,19 @@ class TAUConfig(object):
         This function extracts the value as string and remove potential
         white spaces or comments (#). The separator is expected to be a
         colon.
+        Note: if the parameter is found multiple times, the value of the
+        last occurrence is returned.
 
         :param parameter: the parameter of which to extract the value
         :type pattern: str
         :return: extracted value or empty string
         :rtype: str
         """
+        value = ""
         for line in self._file_content:
             if parameter in line:
-                return line.split(CONFIG_SEP)[-1].split(COMMENT_CHAR)[0].strip()
-        return ""
+                value = line.split(CONFIG_SEP)[-1].split(COMMENT_CHAR)[0].strip()
+        return value
 
     def _parse_bmap(self) -> dict:
         """Load and/or parse boundary mapping.
@@ -174,7 +177,7 @@ class TAUBase(Dataloader):
         files = glob(f"{base}i=*t=*{suffix}")
         if len(files) < 1:
             raise FileNotFoundError(
-                f"Could not find solution files in {self._sol_path}/")
+                f"Could not find solution files in {self._para.path}/")
         time_iter = {}
         split_at = PSOLUTION_POSTFIX if self._distributed else " "
         for f in files:
@@ -292,7 +295,7 @@ class TAUDataloader(TAUBase):
         :param dtype: tensor type, defaults to DEFAULT_DTYPE
         :type dtype: str, optional
         """
-        super(TAUDataloader, self).__init__(parameter_file, dtype)
+        super(TAUDataloader, self).__init__(parameter_file, distributed, dtype)
         self._solution_name = VOL_SOLUTION_NAME
         self._time_iter = self._decompose_file_name()
 
@@ -488,7 +491,7 @@ class TAUSurfaceDataloader(TAUBase):
                 marker_selection = pt.isin(
                     boundary_markers, pt.tensor(zone_markers))
                 if surface_tri is not None and surface_quad is not None:
-                    expanded = pt.empty((surface_tri.size(0), 4))
+                    expanded = pt.empty((surface_tri.size(0), 4), dtype=pt.float64)
                     expanded[:, :3] = surface_tri
                     expanded[:, 3] = float("nan")
                     merged = pt.unique(
