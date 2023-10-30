@@ -534,8 +534,8 @@ class TAUSurfaceDataloader(TAUBase):
             global_ids = pt.from_numpy(data.variables["global_id"][:])
             ids = pt.where(pt.isin(global_ids, self.zone_ids[self.zone]))[0].numpy()
             field = pt.tensor(
-                data.variables[field_name][ids], dtype=self._dtype)
-        return field
+                data.variables[field_name][:], dtype=self._dtype)
+        return field[ids]
 
     @property
     def field_names(self) -> Dict[str, List[str]]:
