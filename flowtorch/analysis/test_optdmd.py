@@ -4,13 +4,59 @@
 # standard library packages
 from os import remove
 from os.path import join, isfile
+
 # third party packages
 import torch as pt
+
 # flowtorch packages
-from .optdmd import EarlyStopping, OptDMD
+from .optdmd import EarlyStopping, OptDMD, _create_conj_complex_pairs
 
 
-class TestEarlyStopping():
+def test_create_conj_complex_pairs():
+    # odd number of eigenvalues, unique real eigenvalue
+    ev = pt.tensor([1.0 + 1.0j, 0.5 - 0.5j, 1.0 - 1.0j, 0.5 + 0.5j, 1.0 + 0.0j])
+    keep, pairs = _create_conj_complex_pairs(ev)
+    assert all(keep == pt.tensor((0, 3, 4), dtype=pt.int64))
+    assert all(pairs == pt.tensor((0, 1), dtype=pt.int64))
+    # odd number of eigenvalues, several real eigenvalues
+    ev = pt.tensor(
+        [
+            1.0 + 1.0j,
+            0.1 + 0.0j,
+            0.5 - 0.5j,
+            1.0 - 1.0j,
+            0.5 + 0.5j,
+            1.0 + 0.0j,
+            2.0 + 0.0j,
+        ]
+    )
+    keep, pairs = _create_conj_complex_pairs(ev)
+    assert all(keep == pt.tensor((0, 4, 1, 5), dtype=pt.int64))
+    assert all(pairs == pt.tensor((0, 1, 2), dtype=pt.int64))
+    # even number of eigenvalues
+    ev = pt.tensor([1.0 + 1.0j, 0.5 - 0.5j, 1.0 - 1.0j, 0.5 + 0.5j])
+    keep, pairs = _create_conj_complex_pairs(ev)
+    assert all(keep == pt.tensor((0, 3), dtype=pt.int64))
+    assert all(pairs == pt.tensor((0, 1), dtype=pt.int64))
+    # even number of eigenvalues, multiple real eigenvalues
+    ev = pt.tensor(
+        [
+            1.0 + 1.0j,
+            0.1 + 0.0j,
+            0.5 - 0.5j,
+            1.0 - 1.0j,
+            0.5 + 0.5j,
+            1.0 + 0.0j,
+            2.0 + 0.0j,
+            2.0 - 0.0j,
+        ]
+    )
+    keep, pairs = _create_conj_complex_pairs(ev)
+    assert all(keep == pt.tensor((0, 4, 1, 5), dtype=pt.int64))
+    assert all(pairs == pt.tensor((0, 1, 2, 3), dtype=pt.int64))
+
+
+class TestEarlyStopping:
     def test_init(self):
         stopper = EarlyStopping()
         stop = stopper(1.0)
@@ -34,7 +80,8 @@ class TestEarlyStopping():
         if isfile(chp):
             remove(chp)
 
-class TestOptDMD():
+
+class TestOptDMD:
     def test_init(self):
         dm = pt.rand((50, 20))
         # construction with even rank

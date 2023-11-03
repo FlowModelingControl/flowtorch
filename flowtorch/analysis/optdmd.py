@@ -2,26 +2,56 @@
 """
 
 # standard library packages
-from typing import Union, Set, Callable
+from typing import Union, Set, Callable, Tuple
 from collections import defaultdict
 from math import sqrt
+
 # third party packages
 import torch as pt
 from numpy import pi
+
 # flowtorch packages
 from .dmd import DMD
 
 
-DEFAULT_SCHEDULER_OPT = {
-    "mode": "min",
-    "factor": 0.5,
-    "patience": 20,
-    "min_lr": 1.0e-6
-}
+DEFAULT_SCHEDULER_OPT = {"mode": "min", "factor": 0.5, "patience": 20, "min_lr": 1.0e-6}
 
 
-def l2_loss(label: pt.Tensor, prediction: pt.Tensor, eigvecs: pt.Tensor,
-            eigvals: pt.Tensor) -> pt.Tensor:
+def _create_conj_complex_pairs(ev: pt.Tensor) -> Tuple[pt.Tensor, pt.Tensor]:
+    """Create indices to preserve conjugate complex eigenvalues.
+
+    For real input data, eivenvalues and eigenvectors must come as
+    conjugate complex pairs. If there is on odd number of eigenvalues,
+    one eigenvalue is reserved to be on the real axis. If there are
+    multiple eigenvalues without imaginary part and the number of eigenvalues
+    is odd, only the one with real part closest to unity is preserved.
+
+    :param ev: tensor of eigenvalues
+    :type ev: pt.Tensor
+    :return: indices of eigenvalues to keep and indices of eigenvalues
+         with conjugate complex pair
+    :rtype: Tuple[pt.Tensor, pt.Tensor]
+    """
+    sort_imag = ev.imag.sort(descending=True).indices
+    zero_imag = ev.imag == 0
+    n = ev.size(0)
+    indices = pt.tensor(range(n), dtype=pt.int64)
+    pairs = indices[: n // 2]
+    if zero_imag.sum() <= 1:  # unique real ev
+        keep = indices[sort_imag][: n // 2 + n % 2]
+    else:  # multiple real ev
+        if n % 2 == 1:  # preserve ev with real part closest to unity
+            keep_real = (ev[zero_imag].real - 1.0).abs().sort().indices[0]
+            keep_real = indices[zero_imag][keep_real]
+            keep = pt.cat((indices[sort_imag][: n // 2], keep_real.unsqueeze(-1)))
+        else:  # do not preserve any real ev
+            keep = indices[sort_imag][: n // 2]
+    return keep, pairs
+
+
+def l2_loss(
+    label: pt.Tensor, prediction: pt.Tensor, eigvecs: pt.Tensor, eigvals: pt.Tensor
+) -> pt.Tensor:
     """Compute the L2 norm of the prediction error.
 
     Note: in contrast to the default norm function in PyTorch,
@@ -44,11 +74,15 @@ def l2_loss(label: pt.Tensor, prediction: pt.Tensor, eigvecs: pt.Tensor,
 
 
 class EarlyStopping:
-    """Provide stopping control for iterative optimization tasks.
-    """
+    """Provide stopping control for iterative optimization tasks."""
 
-    def __init__(self, patience: int = 40, min_delta: float = 0.0,
-                 checkpoint: str = None, model: pt.nn.Module = None):
+    def __init__(
+        self,
+        patience: int = 40,
+        min_delta: float = 0.0,
+        checkpoint: str = None,
+        model: pt.nn.Module = None,
+    ):
         """Initialize a new controller instance.
 
         :param patience: number of iterations to wait for an improved
@@ -118,8 +152,9 @@ class OptDMD(pt.nn.Module):
         are passed to the `train` method.
 
         Warning: the implementation was only tested rigorously for real input
-        data matrices are supported; eigenvectors and eigenvalues are enforced
-        to have complex conjugate pairs in case of real input data.
+        data; eigenvectors and eigenvalues are enforced to have complex conjugate
+        pairs in case of real input data. If there is an odd number of modes,
+        the mode-eigenvalue-pair whose imaginary part
         """
         super(OptDMD, self).__init__()
         self._dmd = DMD(*dmd_args, **dmd_kwargs)
@@ -128,15 +163,16 @@ class OptDMD(pt.nn.Module):
             keep = pt.tensor(range(n_modes), dtype=pt.int64)
             self._conj_indices = pt.zeros(n_modes, dtype=pt.bool)
         else:
-            keep = self._dmd.eigvals.imag >= 0.0
-            self._conj_indices = self._dmd.eigvals[keep].imag > 0.0
+            keep, pairs = _create_conj_complex_pairs(self._dmd.eigvals)
+            self._conj_indices = pairs
         scaled_modes = self._dmd._modes[:, keep] * self._dmd.amplitude[keep]
         self._eigvecs = pt.nn.Parameter(scaled_modes)
         self._eigvals = pt.nn.Parameter(self._dmd._eigvals[keep].clone())
         self._log = defaultdict(list)
 
-    def _create_train_val_split(self, train_size: Union[int, float],
-                                val_size: Union[int, float]) -> tuple:
+    def _create_train_val_split(
+        self, train_size: Union[int, float], val_size: Union[int, float]
+    ) -> tuple:
         """Split the data matrix into training and validation data.
 
         In contrast to general machine learning tasks, the data is not
@@ -157,38 +193,52 @@ class OptDMD(pt.nn.Module):
         n_train = int(len(data) * train_size / (train_size + val_size))
         n_val = len(data) - n_train
         if n_val > 0:
-            return pt.utils.data.TensorDataset(data[:n_train][0]), \
-                pt.utils.data.TensorDataset(data[n_train:][0])
+            return pt.utils.data.TensorDataset(
+                data[:n_train][0]
+            ), pt.utils.data.TensorDataset(data[n_train:][0])
         else:
             return data, None
 
     def forward(self, time_indices: pt.Tensor) -> pt.Tensor:
-        evals = pt.cat(
-            (self._eigvals, self._eigvals[self._conj_indices].conj()))
+        evals = pt.cat((self._eigvals, self._eigvals[self._conj_indices].conj()))
         evecs = pt.cat(
-            (self._eigvecs, self._eigvecs[:, self._conj_indices].conj()), dim=1)
-        vander = pt.vstack([evals**n.item() for n in time_indices[0]]).T
+            (self._eigvecs, self._eigvecs[:, self._conj_indices].conj()), dim=1
+        )
+        vander = pt.vstack([evals ** n.item() for n in time_indices[0]]).T
         return evecs @ vander
 
-    def train(self, epochs: int = 1000, lr: float = 1.0e-3, batch_size: int = None,
-              train_size: Union[int, float] = 0.75, val_size: Union[int, float] = 0.25,
-              normalize_eigvals: bool = False, loss_function: Callable = l2_loss,
-              scheduler_options: dict = {}, stopping_options: dict = {},
-              loss_key: str = "val_loss"):
+    def train(
+        self,
+        epochs: int = 1000,
+        lr: float = 1.0e-3,
+        batch_size: int = None,
+        train_size: Union[int, float] = 0.75,
+        val_size: Union[int, float] = 0.25,
+        normalize_eigvals: bool = False,
+        loss_function: Callable = l2_loss,
+        scheduler_options: dict = {},
+        stopping_options: dict = {},
+        loss_key: str = "val_loss",
+    ):
         if normalize_eigvals:
             ev = self._eigvals.detach()
             ev /= ev.abs()
             self._eigvals = pt.nn.Parameter(ev)
         optimizer = pt.optim.AdamW(self.parameters(), lr=lr)
-        options = {key: scheduler_options[key] if key in scheduler_options
-                   else val for key, val in DEFAULT_SCHEDULER_OPT.items()}
+        options = {
+            key: scheduler_options[key] if key in scheduler_options else val
+            for key, val in DEFAULT_SCHEDULER_OPT.items()
+        }
         scheduler = pt.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer=optimizer, **options)
+            optimizer=optimizer, **options
+        )
         train_set, val_set = self._create_train_val_split(train_size, val_size)
-        batch_size, shuffle = (batch_size, True) if batch_size else (len(
-            train_set), False)
+        batch_size, shuffle = (
+            (batch_size, True) if batch_size else (len(train_set), False)
+        )
         train_loader = pt.utils.data.DataLoader(
-            train_set, batch_size=batch_size, shuffle=shuffle)
+            train_set, batch_size=batch_size, shuffle=shuffle
+        )
         stopper = EarlyStopping(model=self, **stopping_options)
         e, stop = 0, False
         while e < epochs and not stop:
@@ -196,7 +246,8 @@ class OptDMD(pt.nn.Module):
             for batch in train_loader:
                 pred = self.forward(batch)
                 loss = loss_function(
-                    self._dmd._dm[:, batch[0]], pred, self._eigvecs, self._eigvals)
+                    self._dmd._dm[:, batch[0]], pred, self._eigvecs, self._eigvals
+                )
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
@@ -206,16 +257,21 @@ class OptDMD(pt.nn.Module):
                 with pt.no_grad():
                     batch = val_set[:]
                     self._log["val_loss"].append(
-                        loss_function(self._dmd._dm[:, batch[0]], self.forward(batch),
-                                      self._eigvecs, self._eigvals).item()
+                        loss_function(
+                            self._dmd._dm[:, batch[0]],
+                            self.forward(batch),
+                            self._eigvecs,
+                            self._eigvals,
+                        ).item()
                     )
-            self._log["lr"].append(optimizer.param_groups[0]['lr'])
+            self._log["lr"].append(optimizer.param_groups[0]["lr"])
             val_loss = self._log["val_loss"][-1] if val_set is not None else 0.0
             scheduler.step(self._log[loss_key][-1])
             print(
                 "\rEpoch {:4d} - train loss: {:1.6e}, val loss: {:1.6e}, lr: {:1.6e}".format(
                     e, self._log["train_loss"][-1], val_loss, self._log["lr"][-1]
-                ), end=""
+                ),
+                end="",
             )
             e += 1
             stop = stopper(self._log[loss_key][-1])
@@ -230,14 +286,18 @@ class OptDMD(pt.nn.Module):
             rec = rec.real
         return rec.type(self._dmd._dm.dtype)
 
-    def top_modes(self, n: int = 10, integral: bool = False,
-                  f_min: float = -float("inf"),
-                  f_max: float = float("inf")) -> pt.Tensor:
+    def top_modes(
+        self,
+        n: int = 10,
+        integral: bool = False,
+        f_min: float = -float("inf"),
+        f_max: float = float("inf"),
+    ) -> pt.Tensor:
         importance = self.integral_contribution if integral else self.amplitude
-        modes_in_range = pt.logical_and(self.frequency >= f_min,
-                                        self.frequency < f_max)
-        mode_indices = pt.tensor(range(modes_in_range.shape[0]),
-                                 dtype=pt.int64)[modes_in_range]
+        modes_in_range = pt.logical_and(self.frequency >= f_min, self.frequency < f_max)
+        mode_indices = pt.tensor(range(modes_in_range.shape[0]), dtype=pt.int64)[
+            modes_in_range
+        ]
         n = min(n, mode_indices.shape[0])
         top_n = importance[mode_indices].abs().topk(n).indices
         return mode_indices[top_n]
@@ -282,8 +342,7 @@ class OptDMD(pt.nn.Module):
 
     @property
     def dynamics(self) -> pt.Tensor:
-        vander = pt.vstack([self.eigvals**n.item()
-                           for n in self._dmd._usecols]).T
+        vander = pt.vstack([self.eigvals ** n.item() for n in self._dmd._usecols]).T
         return pt.diag(self.amplitude.type(vander.dtype)) @ vander
 
     @property
