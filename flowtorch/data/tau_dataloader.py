@@ -496,8 +496,10 @@ class TAUSurfaceDataloader(TAUBase):
                     expanded[:, 3] = float("nan")
                     merged = pt.unique(
                         pt.cat((expanded, surface_quad), dim=0)[marker_selection].flatten())
-                    self._zone_ids[zone_name] = merged[~pt.isnan(
-                        merged)].type(pt.int64)
+                    
+                    sorted, indices = pt.sort(merged[~pt.isnan(
+                        merged)].type(pt.int64))
+                    self._zone_ids[zone_name] = sorted
                     del expanded, merged
                 elif surface_tri is not None:
                     self._zone_ids[zone_name] = pt.unique(
