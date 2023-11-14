@@ -222,7 +222,7 @@ class TAUBase(Dataloader):
         dimension n_points x 4; the first three columns correspond to the x/y/z
         coordinates, and the 4th column contains the volumes/areas.
         """
-    pass
+        pass
 
     def load_snapshot(self, field_name: Union[List[str], str],
                       time: Union[List[str], str]) -> Union[List[pt.Tensor], pt.Tensor]:
@@ -531,7 +531,7 @@ class TAUSurfaceDataloader(TAUBase):
 
     def _load_single_snapshot(self, field_name: str, time: str) -> pt.Tensor:
         with Dataset(self._file_name(time)) as data:
-            global_ids = pt.from_numpy(data.variables["global_id"][:])
+            global_ids = pt.from_numpy(data.variables["global_id"][:]).type(pt.int64)
             ids = pt.where(pt.isin(global_ids, self.zone_ids[self.zone]))[0].numpy()
             field = pt.tensor(
                 data.variables[field_name][:], dtype=self._dtype)
