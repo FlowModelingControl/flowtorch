@@ -7,7 +7,7 @@ import torch as pt
 # flowtorch packages
 from flowtorch import DATASETS
 from flowtorch.data import FOAMDataloader
-from flowtorch.analysis import DMD
+from .dmd import _dft_properties, DMD
 
 
 def test_DMD():
@@ -46,6 +46,9 @@ def test_DMD():
     assert top.dtype == pt.int64
     assert dmd.reconstruction_error.shape == (rows, cols - 1)
     assert dmd.projection_error.shape == (rows, cols - 1)
+    dft = dmd.dft_properties
+    assert len(dft) == 3
+    assert dft == (10.0, 5.0, 10.0/(cols - 1))
     # robust DMD
     dmd = DMD(data, dt=0.1, rank=rank, robust=True)
     assert dmd.svd.L.shape == (data.shape[0], rank+1)
@@ -79,6 +82,12 @@ def test_DMD():
     dmd = DMD(data, dt=0.1, rank=3, optimal=True, usecols=pt.tensor([0, 2, 3], dtype=pt.int64))
     rec = dmd.reconstruction
     assert rec.shape == (rows, 3)
+
+
+def test_dft_properties():
+    props = _dft_properties(0.1, 500)
+    assert len(props) == 3
+    assert props == (10.0, 5.0, 10.0/500)
 
 
 

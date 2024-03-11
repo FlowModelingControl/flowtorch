@@ -11,6 +11,25 @@ from .svd import SVD
 from flowtorch.data.utils import format_byte_size
 
 
+def _dft_properties(dt: float, n_times: int) -> Tuple[float, float, float]:
+    """Compute general properties of a discrete Fourier transformation.
+
+    DFT properties like maximum frequency and frequency resolution can
+    be a helpful guidance for building sensible data matrices used for
+    modal decomposition.
+
+    :param dt: timestep between two samples; assumed constant
+    :type dt: float
+    :param n_times: number of timesteps
+    :type n_times: int
+    :return: sampling frequency, maximum frequency, frequency resolution
+    :rtype: Tuple[float, float, float]
+    """
+    fs = 1.0 / dt
+    return fs, 0.5 * fs, fs / n_times
+
+
+
 class DMD(object):
     """Class computing the exact DMD of a data matrix.
 
@@ -345,6 +364,10 @@ class DMD(object):
         if not self._tlsq:
             print("Warning: noise is only removed if tlsq=True")
         return self._dm[:, self._usecols] - self._X, self._dm[:, self._usecols + 1] - self._Y
+    
+    @property
+    def dft_properties(self) -> Tuple[float, float, float]:
+        return _dft_properties(self._dt, len(self._usecols))
 
     def __repr__(self):
         return f"{self.__class__.__qualname__}(data_matrix, rank={self._svd.rank})"
@@ -353,4 +376,7 @@ class DMD(object):
         ms = ["SVD:", str(self.svd), "LSQ:"]
         size, unit = format_byte_size(self.required_memory)
         ms.append("Overall DMD size: {:1.4f}{:s}".format(size, unit))
+        ms.append("DFT frequencies (sampling, max., res.):")
+        ms.append("{:1.4f}Hz, {:1.4f}Hz, {:1.4f}Hz".format(*self.dft_properties))
+        ms.append("")
         return "\n".join(ms)
