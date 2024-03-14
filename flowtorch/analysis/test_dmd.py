@@ -28,23 +28,23 @@ def test_DMD():
     assert dmd.growth_rate.shape == (rank,)
     assert dmd.amplitude.shape == (rank,)
     assert dmd.amplitude.dtype == pt.complex64
-    assert dmd.dynamics.shape == (rank, cols - 1)
+    assert dmd.dynamics.shape == (rank, cols)
     assert dmd.dynamics.dtype == pt.complex64
     assert dmd.integral_contribution.shape == (rank,)
     assert dmd.integral_contribution.dtype == pt.float32
-    assert dmd.reconstruction.shape == (rows, cols - 1)
+    assert dmd.reconstruction.shape == (rows, cols)
     assert dmd.reconstruction.dtype == data.dtype
     partial = dmd.partial_reconstruction({0})
     assert partial.dtype == data.dtype
-    assert partial.shape == (rows, cols - 1)
+    assert partial.shape == (rows, cols)
     partial = dmd.partial_reconstruction({0, 2})
     assert partial.dtype == data.dtype
-    assert partial.shape == (rows, cols - 1)
+    assert partial.shape == (rows, cols)
     top = dmd.top_modes(10)
     top = dmd.top_modes(10, True)
     assert top.shape == (min(rank, 10),)
     assert top.dtype == pt.int64
-    assert dmd.reconstruction_error.shape == (rows, cols - 1)
+    assert dmd.reconstruction_error.shape == (rows, cols)
     assert dmd.projection_error.shape == (rows, cols - 1)
     dft = dmd.dft_properties
     assert len(dft) == 3
@@ -72,16 +72,16 @@ def test_DMD():
     DX, DY = dmd.tlsq_error
     assert  DX.shape == (data.shape[0], data.shape[1] - 1)
     assert  DY.shape == (data.shape[0], data.shape[1] - 1)
-    # DMD with usecols parameter
-    with raises(ValueError):
-        usecols = pt.tensor([0, data.shape[1] - 1], dtype=pt.int64)
-        dmd = DMD(data, dt=0.1, usecols=usecols)
-    with raises(ValueError):
-        usecols = pt.ones(data.shape[1], dtype=pt.int64)
-        dmd = DMD(data, dt=0.1, usecols=usecols)
-    dmd = DMD(data, dt=0.1, rank=3, optimal=True, usecols=pt.tensor([0, 2, 3], dtype=pt.int64))
-    rec = dmd.reconstruction
-    assert rec.shape == (rows, 3)
+    # predict member function
+    dmd = DMD(data, dt=0.1, rank=3)
+    prediction = dmd.predict(data[:, -1], 10)
+    assert prediction.shape == (rows, 11)
+    assert prediction.dtype == data.dtype
+    data = data.type(pt.complex64)
+    dmd = DMD(data, dt=0.1, rank=3)
+    prediction = dmd.predict(data[:, -1], 10)
+    assert prediction.shape == (rows, 11)
+    assert prediction.dtype == data.dtype
 
 
 def test_dft_properties():

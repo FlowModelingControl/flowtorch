@@ -70,8 +70,7 @@ class TestHODMD():
     def test_reconstruction_error(self):
         dm = pt.rand((50, 20))
         dmd = HODMD(dm, 1.0)
-        _, cols = dmd._dm.shape
-        assert dmd.reconstruction_error.shape == (50, cols - 1)
+        assert dmd.reconstruction_error.shape == (50, 20)
 
     def test_tlsq_error(self):
         dm = pt.rand((50, 20))
@@ -87,3 +86,17 @@ class TestHODMD():
         _, cols = dmd._dm.shape
         err = dmd.projection_error
         assert err.shape == (50, cols - 1)
+
+    def test_predict(self):
+        dm = pt.rand((50, 20))
+        dmd = HODMD(dm, 1.0, rank_dr=15, rank=10, delay=5)
+        prediction = dmd.predict(pt.rand((50, 5)), 12)
+        assert prediction.shape == (50, 13)
+        assert prediction.dtype == dm.dtype
+        # test special case of 1D signal
+        dm = pt.rand((1, 20))
+        dmd = HODMD(dm, 1.0, rank_dr=15, rank=10, delay=5)
+        prediction = dmd.predict(pt.rand((1, 5)), 12)
+        assert prediction.shape == (1, 13)
+        assert prediction.dtype == dm.dtype
+

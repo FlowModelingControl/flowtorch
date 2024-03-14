@@ -34,6 +34,7 @@ class HOOptDMD(OptDMD):
         self._dm_org = data_matrix
         self._rows_org, self._cols_org = data_matrix.shape
         self._svd_dr = SVD(data_matrix, rank_dr)
+        self._delay = delay
         super(HOOptDMD, self).__init__(
             _create_time_delays(self._svd_dr.U.T @ self._dm_org, delay),
             dt, **dmd_options
@@ -45,7 +46,41 @@ class HOOptDMD(OptDMD):
         mode_indices = pt.tensor(list(mode_indices), dtype=pt.int64)
         mode_mask[mode_indices] = 1.0
         rec = (modes * mode_mask) @ self.dynamics
-        return rec.real.type(self._dmd._dm.dtype)
+        if not self._dmd._complex:
+            rec = rec.real
+        return rec
+    
+    def predict(self, initial_condition: pt.Tensor, n_steps: int) -> pt.Tensor:
+        """Predict evolution over N steps starting from used-defined initial conditions.
+
+        The prediction is performed as follows:
+        1) the initial conditions are projected on the first r POD modes
+        2) the time delay embedding is computed in the reduced space
+        3) the prediction is computed in the reduced space
+        4) the first r rows of the prediction are reconstructed
+
+        :param initial_condition: initial sequence of state vectors without time delay
+            embedding; for d delays and a state vector of size M, the initial conditions
+            should be given as a M x d matrix sorted such that the most recent state
+            is contained in the last column
+        :type initial_condition: pt.Tensor
+        :param n_steps: number of future steps to predict
+        :type n_steps: int
+        :return: predicted states; due to the structure of the linear operator
+            some states are predicted multiple times; only the first M rows of the
+            reconstruction are returned
+        :rtype: pt.Tensor
+        """
+        ic = self.svd_dr.U.T @ initial_condition
+        ic = _create_time_delays(ic, self._delay, 1).squeeze()
+        prediction = super().predict(ic, n_steps)
+        r = self.svd_dr.rank
+        return self.svd_dr.U @ prediction[-r:]
+    
+    @property
+    def dynamics(self) -> pt.Tensor:
+        vander = pt.linalg.vander(self.eigvals, N=self._cols_org)
+        return pt.diag(self.amplitude.type(vander.dtype)) @ vander
 
     @property
     def modes(self):
@@ -55,8 +90,15 @@ class HOOptDMD(OptDMD):
 
     @property
     def reconstruction(self) -> pt.Tensor:
-        return (self.modes @ self.dynamics).real
+        rec = self.modes @ self.dynamics
+        if not self._dmd._complex:
+            rec = rec.real
+        return rec
 
     @property
     def reconstruction_error(self) -> pt.Tensor:
-        return self._dm_org[:, self._dmd._usecols] - self.reconstruction
+        return self._dm_org - self.reconstruction
+    
+    @property
+    def svd_dr(self) -> SVD:
+        return self._svd_dr

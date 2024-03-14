@@ -189,7 +189,8 @@ class OptDMD(pt.nn.Module):
         :return: training and validation data wrapped as `TensorDataset`
         :rtype: tuple
         """
-        data = pt.utils.data.TensorDataset(self._dmd._usecols)
+        data = pt.utils.data.TensorDataset(
+            pt.tensor(range(self._dmd._cols), dtype=pt.int64))
         n_train = int(len(data) * train_size / (train_size + val_size))
         n_val = len(data) - n_train
         if n_val > 0:
@@ -214,16 +215,39 @@ class OptDMD(pt.nn.Module):
         batch_size: int = None,
         train_size: Union[int, float] = 0.75,
         val_size: Union[int, float] = 0.25,
-        normalize_eigvals: bool = False,
         loss_function: Callable = l2_loss,
         scheduler_options: dict = {},
         stopping_options: dict = {},
-        loss_key: str = "val_loss",
+        loss_key: str = "val_loss"
     ):
-        if normalize_eigvals:
-            ev = self._eigvals.detach()
-            ev /= ev.abs()
-            self._eigvals = pt.nn.Parameter(ev)
+        """Optimize modes and dynamics based on gradient descent.
+
+        :param epochs: number of training iterations, defaults to 1000
+        :type epochs: int, optional
+        :param lr: initial learning rate, defaults to 1.0e-3
+        :type lr: float, optional
+        :param batch_size: batch size for batch training, defaults to None
+        :type batch_size: int, optional
+        :param train_size: fraction or number of snapshots to use for
+            training; defaults to 0.75
+        :type train_size: Union[int, float], optional
+        :param val_size: fraction or number of snapshots to use for
+            validation; defaults to 0.25
+        :type val_size: Union[int, float], optional
+        :param loss_function: user-defined loss function, e.g., to add
+            sparsity promotion, defaults to l2_loss
+        :type loss_function: Callable, optional
+        :param scheduler_options: options passed to learning rate scheduler;
+            refer to PyTorch's `ReduceLROnPlateau` documentation; defaults to {}
+        :type scheduler_options: dict, optional
+        :param stopping_options: options to modify early stopping behavior;
+            refer to the `EarlyStopping` class; defaults to {}
+        :type stopping_options: dict, optional
+        :param loss_key: key of loss value based on which the learning rate schedule
+            and early stopping criteria are evaluated; can be either 'train_loss' or
+            'val_loss'; defaults to "val_loss"
+        :type loss_key: str, optional
+        """
         optimizer = pt.optim.AdamW(self.parameters(), lr=lr)
         options = {
             key: scheduler_options[key] if key in scheduler_options else val
@@ -301,6 +325,23 @@ class OptDMD(pt.nn.Module):
         n = min(n, mode_indices.shape[0])
         top_n = importance[mode_indices].abs().topk(n).indices
         return mode_indices[top_n]
+    
+    def predict(self, initial_condition: pt.Tensor, n_steps: int) -> pt.Tensor:
+        """Predict evolution over N steps starting from used-defined initial conditions.
+
+        :param initial_condition: initial state vector
+        :type initial_condition: pt.Tensor
+        :param n_steps: number of steps to predict
+        :type n_steps: int
+        :return: predicted evolution including the initial state (N+1 states are returned)
+        :rtype: pt.Tensor
+        """
+        modes = self.eigvecs / self.amplitude
+        b = pt.linalg.pinv(modes) @ initial_condition.type(modes.dtype)
+        prediction = modes @ pt.diag(b) @ pt.linalg.vander(self.eigvals, N=n_steps+1)
+        if not self._dmd._complex:
+            prediction = prediction.real
+        return prediction
 
     @property
     def dmd_init(self) -> DMD:
@@ -342,7 +383,7 @@ class OptDMD(pt.nn.Module):
 
     @property
     def dynamics(self) -> pt.Tensor:
-        vander = pt.vstack([self.eigvals ** n.item() for n in self._dmd._usecols]).T
+        vander = pt.linalg.vander(self.eigvals, N=self._dmd._cols)
         return pt.diag(self.amplitude.type(vander.dtype)) @ vander
 
     @property
@@ -355,4 +396,4 @@ class OptDMD(pt.nn.Module):
 
     @property
     def reconstruction_error(self) -> pt.Tensor:
-        return self._dmd._dm[:, self._dmd._usecols] - self.reconstruction
+        return self._dmd._dm - self.reconstruction

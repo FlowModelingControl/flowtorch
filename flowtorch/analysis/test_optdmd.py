@@ -110,9 +110,9 @@ class TestOptDMD:
         dmd = OptDMD(dm, 1.0, 10)
         train, val = dmd._create_train_val_split(0.5, 0.5)
         assert len(train) == 10
-        assert len(val) == 10
+        assert len(val) == 11
         assert train[:][0].tolist() == list(range(10))
-        assert val[:][0].tolist() == list(range(10, 20))
+        assert val[:][0].tolist() == list(range(10, 21))
 
     def test_forward(self):
         dm = pt.rand((50, 20))
@@ -146,7 +146,7 @@ class TestOptDMD:
         dm = pt.rand((50, 20))
         dmd = OptDMD(dm, 1.0, rank=10)
         rec = dmd.partial_reconstruction((0, 1))
-        assert rec.shape == (50, 19)
+        assert rec.shape == (50, 20)
         assert rec.dtype == dm.dtype
 
     def test_top_modes(self):
@@ -161,5 +161,13 @@ class TestOptDMD:
         dm = pt.rand((50, 20))
         dmd = OptDMD(dm, 1.0, rank=5)
         rec = dmd.reconstruction
-        assert rec.shape == (50, 19)
+        assert rec.shape == (50, 20)
         assert rec.dtype == dm.dtype
+
+    def test_predict(self):
+        dm = pt.rand((50, 20))
+        dmd = OptDMD(dm, 1.0, rank=5)
+        dmd.train(10)
+        pred = dmd.predict(dm[:, -1], 10)
+        assert pred.shape == (50, 11)
+        assert pred.dtype == dm.dtype

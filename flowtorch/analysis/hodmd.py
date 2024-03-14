@@ -6,38 +6,48 @@ from .svd import SVD
 from .dmd import DMD
 
 
-def _check_time_delays(delay: int, columns: int):
+def _check_time_delays(delay: int, columns: int, min_cols: int):
     """Check if the number of time delays is valid.
 
     :param delay: how many time delays to use
     :type delay: int
     :param columns: number of columns in the data matrix
     :type columns: int
+    :param min_cols: minimum number of column the resulting data matrix
+        must have, e.g., DMD is only possible if there are at least two
+        columns; defaults to 2
+    :type delay: int
     :raises ValueError: if delay is less than 1
-    :raises ValueError: if there are not enough snapshots for the given delay
+    :raises ValueError: if there are not enough snapshots for the
+        requested delays in combination with the minimum number of columns
     """
     if delay < 1:
         raise ValueError(
             f"The 'delay' parameter must be a positive integer. Got {delay}"
         )
-    if columns - delay < 1:
+    if columns - delay < min_cols - 1:
         raise ValueError(
-            f"The number of snapshots ({columns:d}) must be larger than the number of time delays ({delay:d})"
+            f"The number of snapshots ({columns:d}) must be larger than ({delay+min_cols-1:d})"
         )
 
 
-def _create_time_delays(data_matrix: pt.Tensor, delay: int) -> pt.Tensor:
+def _create_time_delays(data_matrix: pt.Tensor, delay: int,
+                        min_cols: int = 2) -> pt.Tensor:
     """Create data matrix enriched with time delays (Hankel matrix).
     :param data_matrix: 2D data matrix with (reduced) snapshots as column
         vectors
     :type data_matrix: pt.Tensor
     :param delay: number of time levels (delay coordinates) to use
     :type delay: int
+    :param min_cols: minimum number of column the resulting data matrix
+        must have, e.g., DMD is only possible if there are at least two
+        columns; defaults to 2
+    :type delay: int
     :return: data matrix enriched with time delays
     :rtype: pt.Tensor
     """
     _, cols = data_matrix.shape
-    _check_time_delays(delay, cols)
+    _check_time_delays(delay, cols, min_cols)
     return pt.cat(
         [data_matrix[:, i:cols - (delay - i - 1)] for i in range(delay)]
     )
@@ -98,6 +108,33 @@ class HODMD(DMD):
             dt, **dmd_options
         )
 
+    def predict(self, initial_condition: pt.Tensor, n_steps: int) -> pt.Tensor:
+        """Predict evolution over N steps starting from used-defined initial conditions.
+
+        The prediction is performed as follows:
+        1) the initial conditions are projected on the first r POD modes
+        2) the time delay embedding is computed in the reduced space
+        3) the prediction is computed in the reduced space
+        4) the first r rows of the prediction are reconstructed
+
+        :param initial_condition: initial sequence of state vectors without time delay
+            embedding; for d delays and a state vector of size M, the initial conditions
+            should be given as a M x d matrix sorted such that the most recent state
+            is contained in the last column
+        :type initial_condition: pt.Tensor
+        :param n_steps: number of future steps to predict
+        :type n_steps: int
+        :return: predicted states; due to the structure of the linear operator
+            some states are predicted multiple times; only the first M rows of the
+            reconstruction are returned
+        :rtype: pt.Tensor
+        """
+        ic = self.svd_dr.U.T @ initial_condition
+        ic = _create_time_delays(ic, self._delay, 1).squeeze()
+        prediction = super().predict(ic, n_steps)
+        r = self.svd_dr.rank
+        return self.svd_dr.U @ prediction[-r:]
+
     @property
     def svd_dr(self) -> SVD:
         return self._svd_dr
@@ -119,6 +156,32 @@ class HODMD(DMD):
         """
         r = self.svd_dr.rank
         return self.svd_dr.U.type(self._modes.dtype) @ super().modes[:r]
+    
+    @property
+    def dynamics(self) -> pt.Tensor:
+        """Get mode dynamics for the original data matrix.
+
+        :return: mode dynamics for the original snapshot sequence
+        :rtype: pt.Tensor
+        """
+        return pt.diag(self.amplitude) @ \
+            pt.linalg.vander(self.eigvals, N=self._cols_org)
+    
+    @property
+    def reconstruction(self) -> pt.Tensor:
+        """Compute reconstruction of original data matrix.
+
+        Due to the time delays, some states are contained multiple times
+        in a reconstruction. Only the first occurrence of a state is kept
+        when looping over the rows in steps of size r (rank).
+
+        :return: reconstruction of original data matrix
+        :rtype: pt.Tensor
+        """
+        rec = self.modes @ self.dynamics
+        if not self._complex:
+            rec = rec.real
+        return rec
 
     @property
     def reconstruction_error(self) -> pt.Tensor:
@@ -131,8 +194,7 @@ class HODMD(DMD):
         :return: reconstruction error
         :rtype: pt.Tensor
         """
-        reconstruction = self.reconstruction
-        return reconstruction - self._dm_org[:, :reconstruction.shape[-1]]
+        return self.reconstruction - self._dm_org
 
     @property
     def projection_error(self) -> pt.Tensor:
