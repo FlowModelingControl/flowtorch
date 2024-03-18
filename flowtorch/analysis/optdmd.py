@@ -244,8 +244,8 @@ class OptDMD(pt.nn.Module):
             refer to the `EarlyStopping` class; defaults to {}
         :type stopping_options: dict, optional
         :param loss_key: key of loss value based on which the learning rate schedule
-            and early stopping criteria are evaluated; can be either 'train_loss' or
-            'val_loss'; defaults to "val_loss"
+            and early stopping criteria are evaluated; can be 'train_loss',
+            'val_loss', or 'full_loss'; defaults to "val_loss"
         :type loss_key: str, optional
         """
         optimizer = pt.optim.AdamW(self.parameters(), lr=lr)
@@ -290,6 +290,7 @@ class OptDMD(pt.nn.Module):
                     )
             self._log["lr"].append(optimizer.param_groups[0]["lr"])
             val_loss = self._log["val_loss"][-1] if val_set is not None else 0.0
+            self._log["full_loss"].append(val_loss + self._log["train_loss"][-1])
             scheduler.step(self._log[loss_key][-1])
             print(
                 "\rEpoch {:4d} - train loss: {:1.6e}, val loss: {:1.6e}, lr: {:1.6e}".format(

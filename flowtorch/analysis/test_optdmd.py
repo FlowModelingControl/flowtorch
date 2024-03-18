@@ -130,6 +130,8 @@ class TestOptDMD:
         assert isinstance(dmd.log["train_loss"][-1], float)
         assert len(dmd.log["val_loss"]) == 5
         assert isinstance(dmd.log["val_loss"][-1], float)
+        assert len(dmd.log["full_loss"]) == 5
+        assert isinstance(dmd.log["full_loss"][-1], float)
         # no validation data
         dmd = OptDMD(dm, 1.0, 10)
         dmd.train(5, val_size=0, loss_key="train_loss")
