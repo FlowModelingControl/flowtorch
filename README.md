@@ -6,18 +6,15 @@
 
 **flowTorch** - a Python library for analysis and reduced order modeling of fluid flows
 
-*flowTorch* is developed primarily by [@AndreWeiner](https://github.com/AndreWeiner) in the [Flow Modeling and Control group](https://www.tu-braunschweig.de/en/ism/research-workgroups/flow-modelling-and-control) led by [Richard Semaan](https://www.tu-braunschweig.de/en/ism/research/flow-modelling-and-control/staff/semaan). The development is financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.for2895.uni-stuttgart.de/)
-
-
-> unsteady flow and interaction phenomena at high speed stall conditions
-
-with the primary goal to investigate flow conditions that lead to [buffeting](https://en.wikipedia.org/wiki/Aeroelasticity#Buffeting) at airfoils in the transonic flow regime. The animation below shows the shock buffet on a NACA-0012 airfoil at *Re=10^7*, *Ma=0.75*, and 4 degrees angle of attack. The simulation was conducted in OpenFOAM; follow [this link](https://github.com/AndreWeiner/naca0012_shock_buffet) for more information about the setup.
+The development of flowTorch is primarily financed by the German Research Foundation (DFG) within the research program [FOR 2895](https://www.for2895.uni-stuttgart.de/) *unsteady flow and interaction phenomena at high speed stall conditions* with the primary goal to investigate flow conditions that lead to [buffeting](https://en.wikipedia.org/wiki/Aeroelasticity#Buffeting) at airfoils in the transonic flow regime.
 
 https://user-images.githubusercontent.com/8482575/120886182-f2b78800-c5ec-11eb-9b93-efb9a139c431.mp4
 
+The animation shows the shock buffet on a NACA-0012 airfoil at $Re=10^7$, $Ma=0.75$, and $\alpha=4^\circ$ angle of attack. The simulation was conducted with OpenFOAM; follow [this link](https://github.com/AndreWeiner/naca0012_shock_buffet) for more information about the setup.
+
 ## Why *flowTorch*?
 
-The *flowTorch* project was started to make the analysis and modeling of fluid data **easy** and **accessible** to everyone. The library design intends to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. *flowTorch* helps to fuse data from a wide range of file formats typical for fluid flow data, for example, to compare experiments simulations. The available analysis and modeling tools are rigorously tested and demonstrated on a variety of different fluid flow datasets. Moreover, one can significantly accelerate the entire process of accessing, cleaning, analysing, and modeling fluid flow data by starting with one of the pipelines available in the *flowTorch* [documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.1/index.html).
+The *flowTorch* project was started to make the analysis and modeling of fluid data **easy** and **accessible** to everyone. The library design intends to strike a balance between **usability** and **flexibility**. Instead of a monolithic, black-box analysis tool, the library offers modular components that allow assembling custom analysis and modeling workflows with ease. *flowTorch* helps to fuse data from a wide range of file formats typical for fluid flow data, for example, to compare experiments simulations. The available analysis and modeling tools are rigorously tested and demonstrated on a variety of different fluid flow datasets. Moreover, one can significantly accelerate the entire process of accessing, cleaning, analyzing, and modeling fluid flow data by starting with one of the pipelines available in the *flowTorch* [documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.2/index.html).
 
 To get a first impression of how working with *flowTorch* looks like, the code snippet below shows part of a pipeline for performing a dynamic mode decomposition (DMD) of a transient *OpenFOAM* simulation.
 
@@ -46,7 +43,7 @@ for i, time in enumerate(window_times):
 
 # perform DMD
 dmd = DMD(data_matrix, rank=19)
-# analyse dmd.modes or dmd.eigvals
+# analyze dmd.modes or dmd.eigvals
 # ...
 ```
 
@@ -54,9 +51,9 @@ Currently, the following sub-packages are under active development. Note that so
 
 | package | content |
 | :------ | :-------|
-|flowtorch.data | data loading, domain reduction (masked selection) |
-| flowtorch.analysis | algorithms for dimensionality reduction, including *proper orthogonal decomposition* (POD), *dynamic mode decomposition* (DMD), autoencoders, and variants thereof |
-| flowtorch.rom | reduced-order modeling using [cluster-based network models (CNM)](https://github.com/fernexda/cnm) |
+|flowtorch.data | data loading, domain reduction (masked selection), outlier removal |
+| flowtorch.analysis | algorithms for dimensionality reduction and modal analysis (e.g., SVD, DMD, MSSA) |
+| flowtorch.rom | reduced-order modeling (CNM) |
 
 *flowTorch* uses the [PyTorch](https://github.com/pytorch/pytorch) library as a backend for data structures, data types, and linear algebra operations on CPU and GPU. Some cool features of *flowTorch* include:
 
@@ -69,12 +66,13 @@ Currently, the following sub-packages are under active development. Note that so
 
 *flowTorch* can be also used easily in combination with existing Python packages for analysis and reduced-order modeling thanks to the interoperability between PyTorch and NumPy. Great examples are (by no means a comprehensive list):
 
-- [PyDMD](https://github.com/mathLab/PyDMD) - Python Dynamic Mode Decomposition
+- [PyDMD](https://github.com/mathLab/PyDMD) - Python dynamic mode decomposition
 - [PySINDy](https://github.com/dynamicslab/pysindy) - sparse identification of nonlinear dynamical systems from data
+- [PyKoopman](https://github.com/dynamicslab/pykoopman) - data-driven approximations of the Koopman operator
 
 ## Getting started
 
-The easiest way to install *flowTorch* is as follows:
+The easiest way to install *flowTorch* is as follows (use the development branch *aweiner* for access to the latest developments):
 ```
 # install via pip
 pip3 install git+https://github.com/FlowModelingControl/flowtorch
@@ -92,8 +90,13 @@ and install the dependencies listed in *requirements.txt*:
 ```
 pip3 install -r requirements.txt
 ```
+Installing all flowTorch dependencies requires a significant amount of disk space. When using isolated subpackages, one can also install the dependencies manually (by trial-and-error). To load the library package from within a Python script file or a Jupyter notebook, add the path to the cloned repository as follows:
+```
+import sys
+sys.path.insert(0, "/path/to/repository")
+```
 
-To get an overview of what *flowTorch* can do for you, have a look at the [online documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.1/index.html). The examples presented in the online documentation are also contained in this repository. In fact, the documentation is a static version of several [Jupyter labs](https://jupyter.org/) with start-to-end analyses. If you are interested in an interactive version of one particular example, navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the **corresponding datasets are required**. The datasets can be downloaded [here](https://cloud.tu-braunschweig.de/s/sJYEfzFG7yDg3QT) (~2.6GB). If the data are only required for unit testing, a reduced dataset may be downloaded [here](https://cloud.tu-braunschweig.de/s/b9xJ7XSHMbdKwxH) (~411MB). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
+To get an overview of what *flowTorch* can do for you, have a look at the [online documentation](https://flowmodelingcontrol.github.io/flowtorch-docs/1.2/index.html). The examples presented in the online documentation are also contained in this repository. In fact, the documentation is a static version of several [Jupyter labs](https://jupyter.org/) with start-to-end analyses. If you are interested in an interactive version of one particular example, navigate to `./docs/source/notebooks` and run `jupyter lab`. Note that to execute some of the notebooks, the **corresponding datasets are required**. The datasets can be downloaded [here](https://cloud.tu-braunschweig.de/s/sJYEfzFG7yDg3QT) (~2.6GB). If the data are only required for unit testing, a reduced dataset may be downloaded [here](https://cloud.tu-braunschweig.de/s/b9xJ7XSHMbdKwxH) (~411MB). Download the data into a directory of your choice and navigate into that directory. To extract the archive, run:
 ```
 # full dataset
 tar xzf datasets_29_10_2021.tar.gz
@@ -139,6 +142,9 @@ cd ParaView-5.9.1-MPI-Linux-Python3.8-64bit/
 echo export PATH="\$PATH:$(pwd)/bin" >> ~/.bashrc
 echo export PYTHONPATH="\$PYTHONPATH:$(pwd)/lib/python3.8/site-packages" >> ~/.bashrc
 ```
+In case of version conflicts between Python packages coming with ParaView and local versions of these packages, the following options exist:
+1. go to your ParaView installation and manually delete or rename the affected packages; the packages are located at */path/to/ParaView/lib/python3.8/site-packages*
+2. use *pvpython*, a modified Python interpreter shipped with ParaView and add a virtual environment containing flowTorch but not the conflicting packages (see [Using pvpython and virtualenv](https://www.kitware.com/using-pvpython-and-virtualenv/))
 
 ## Development
 ### Documentation

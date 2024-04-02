@@ -1,5 +1,5 @@
 # standard library packages
-import os
+from os.path import join
 import pytest
 import sys
 # third party packages
@@ -34,12 +34,12 @@ class FOAMTestData:
         for case in self.test_cases:
             if self.distributed[case]:
                 self.file_paths[case] = [
-                    self.paths[case] + "/processor0/{:s}/U".format(time)
+                    join(self.paths[case], "processor0", time, "U")
                     for time in self.times[case]
                 ]
             else:
                 self.file_paths[case] = [
-                    self.paths[case] + "/{:s}/U".format(time)
+                    join(self.paths[case], time, "U")
                     for time in self.times[case]
                 ]
         field_names = {'0': ['U', 'p'],
@@ -93,10 +93,10 @@ class FOAMTestData:
             "of_cavity_binary_parallel": U_sum_parallel
         }
         self.mesh_paths = {
-            "of_cavity_ascii": "/constant/polyMesh/",
-            "of_cavity_binary": "/constant/polyMesh/",
-            "of_cavity_ascii_parallel": "/processor0/constant/polyMesh/",
-            "of_cavity_binary_parallel": "/processor0/constant/polyMesh/"
+            "of_cavity_ascii": join("constant", "polyMesh"),
+            "of_cavity_binary": join("constant", "polyMesh"),
+            "of_cavity_ascii_parallel": join("processor0", "constant", "polyMesh"),
+            "of_cavity_binary_parallel": join("processor0", "constant", "polyMesh")
         }
         self.n_points = {
             "of_cavity_ascii": 882,
@@ -200,7 +200,7 @@ class TestFOAMMesh:
             case = FOAMCase(get_test_data.paths[key])
             mesh = FOAMMesh(case)
             mesh_path = get_test_data.mesh_paths[key]
-            points = mesh._parse_points(case._path + mesh_path)
+            points = mesh._parse_points(join(case._path, mesh_path))
             assert pt.sum(
                 pt.abs(
                     points[0, :] - pt.Tensor([0, 0, 0])
@@ -214,7 +214,7 @@ class TestFOAMMesh:
             case = FOAMCase(get_test_data.paths[key])
             mesh = FOAMMesh(case)
             mesh_path = get_test_data.mesh_paths[key]
-            n_points_faces, faces = mesh._parse_faces(case._path + mesh_path)
+            n_points_faces, faces = mesh._parse_faces(join(case._path, mesh_path))
             n_faces = get_test_data.n_faces[key]
             first_face = get_test_data.first_faces[key]
             assert faces.size()[0] == n_faces
@@ -227,7 +227,7 @@ class TestFOAMMesh:
             mesh = FOAMMesh(case)
             mesh_path = get_test_data.mesh_paths[key]
             owners, neighbors = mesh._parse_owners_and_neighbors(
-                case._path + mesh_path)
+                join(case._path, mesh_path))
             n_owners = get_test_data.n_faces[key]
             n_neighbors = get_test_data.n_neighbors[key]
             first_owners = get_test_data.first_n_owners[key]
@@ -247,7 +247,7 @@ class TestFOAMMesh:
             mesh = FOAMMesh(case)
             mesh_path = get_test_data.mesh_paths[key]
             centers, volumes = mesh._compute_cell_centers_and_volumes(
-                case._path + mesh_path)
+                join(case._path, mesh_path))
             assert centers.size()[0] == get_test_data.n_centers_volumes[key]
             assert volumes.size()[0] == get_test_data.n_centers_volumes[key]
             assert pt.sum(

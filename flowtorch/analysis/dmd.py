@@ -11,11 +11,27 @@ from .svd import SVD
 from flowtorch.data.utils import format_byte_size
 
 
+def _dft_properties(dt: float, n_times: int) -> Tuple[float, float, float]:
+    """Compute general properties of a discrete Fourier transformation.
+
+    DFT properties like maximum frequency and frequency resolution can
+    be a helpful guidance for building sensible data matrices used for
+    modal decomposition.
+
+    :param dt: timestep between two samples; assumed constant
+    :type dt: float
+    :param n_times: number of timesteps
+    :type n_times: int
+    :return: sampling frequency, maximum frequency, frequency resolution
+    :rtype: Tuple[float, float, float]
+    """
+    fs = 1.0 / dt
+    return fs, 0.5 * fs, fs / n_times
+
+
+
 class DMD(object):
     """Class computing the exact DMD of a data matrix.
-
-    Currently, no advanced mode selection algorithms are implemented.
-    The mode amplitudes are computed using the first snapshot.
 
     Examples
 
@@ -39,7 +55,7 @@ class DMD(object):
 
     def __init__(self, data_matrix: pt.Tensor, dt: float, rank: int = None,
                  robust: Union[bool, dict] = False, unitary: bool = False,
-                 optimal: bool = False, tlsq=False):
+                 optimal: bool = False, tlsq: bool = False, usecols: pt.Tensor = None):
         """Create DMD instance based on data matrix and time step. 
 
         :param data_matrix: data matrix whose columns are formed by the individual snapshots
@@ -66,13 +82,14 @@ class DMD(object):
             found in the TDMD_ article by M. Hemati et al.
         :type tlsq: bool, optional
 
-
         .. _piDMD: https://github.com/baddoo/piDMD
         .. _spDMD: https://hal-polytechnique.archives-ouvertes.fr/hal-00995141/document
         .. _article: http://www.pyrunner.com/weblog/2016/08/03/spdmd-python/
         .. _TDMD: http://cwrowley.princeton.edu/papers/Hemati-2017a.pdf
         """
         self._dm = data_matrix
+        self._complex = self._dm.dtype in (pt.complex32, pt.complex64, pt.complex128)
+        self._rows, self._cols = self._dm.shape
         self._dt = dt
         self._unitary = unitary
         self._optimal = optimal
@@ -101,7 +118,7 @@ class DMD(object):
             U, _, VT = pt.linalg.svd(Yp @ Xp.conj().T, full_matrices=False)
             return U @ VT
         else:
-            s_inv = pt.diag(1.0 / self._svd.s)
+            s_inv = pt.diag(1.0 / self._svd.s.type(self._dm.dtype))
             return self._svd.U.conj().T @ self._Y @ self._svd.V @ s_inv
 
     def _compute_mode_decomposition(self):
@@ -125,14 +142,14 @@ class DMD(object):
         in the constructor for more information).
         """
         if self._optimal:
-            vander = pt.vander(self.eigvals, self._dm.shape[-1], True)
-            P = (self.modes.conj().T @ self.modes) * \
+            vander = pt.linalg.vander(self.eigvals, N=self._cols - 1)
+            P = (self._modes.conj().T @ self._modes) * \
                 (vander @ vander.conj().T).conj()
-            q = pt.diag(vander @ self._dm.type(P.dtype).conj().T @
-                        self.modes).conj()
+            q = pt.diag(vander @ self._X.type(P.dtype).conj().T @
+                        self._modes).conj()
         else:
             P = self._modes
-            q = self._X[:, 0].type(P.dtype)
+            q = self._dm[:, 0].type(P.dtype)
         return pt.linalg.lstsq(P, q).solution
 
     def partial_reconstruction(self, mode_indices: Set[int]) -> pt.Tensor:
@@ -143,34 +160,64 @@ class DMD(object):
         :return: reconstructed data matrix
         :rtype: pt.Tensor
         """
-        rows, cols = self.modes.shape
+        rows, cols = self._modes.shape
         mode_mask = pt.zeros(cols, dtype=pt.complex64)
         mode_indices = pt.tensor(list(mode_indices), dtype=pt.int64)
         mode_mask[mode_indices] = 1.0
-        reconstruction = (self.modes * mode_mask) @ self.dynamics
-        if self._dm.dtype in (pt.complex128, pt.complex64, pt.complex32):
-            return reconstruction.type(self._dm.dtype)
-        else:
-            return reconstruction.real.type(self._dm.dtype)
+        rec = (self.modes * mode_mask) @ self.dynamics
+        if not self._complex:
+            rec = rec.real
+        return rec
 
-    def top_modes(self, n: int = 10, integral: bool = False) -> pt.Tensor:
+    def top_modes(self, n: int = 10, integral: bool = False,
+                  f_min: float = -float("inf"),
+                  f_max: float = float("inf")) -> pt.Tensor:
         """Get the indices of the first n most important modes.
 
         Note that the conjugate complex modes for real data matrices are
-        not filtered out.
+        not filtered out by default. However, by setting the lower frequency
+        threshold to a positive number, only modes with positive imaginary
+        part are considered.
 
         :param n: number of indices to return; defaults to 10
         :type n: int
         :param integral: if True, the modes are sorted according to their
             integral contribution; defaults to False
         :type integral: bool, optional
+        :param f_min: consider only modes with a frequency larger or equal
+            to f_min; defaults to -inf
+        :type f_min: float, optional
+        :param f_max: consider only modes with a frequency smaller than f_max;
+            defaults to -inf
+        :type f_max: float, optional
         :return: indices of top n modes sorted by amplitude or integral
             contribution
         :rtype: pt.Tensor
         """
         importance = self.integral_contribution if integral else self.amplitude
-        n = min(n, importance.shape[0])
-        return importance.abs().topk(n).indices
+        modes_in_range = pt.logical_and(self.frequency >= f_min,
+                                        self.frequency < f_max)
+        mode_indices = pt.tensor(range(modes_in_range.shape[0]),
+                                 dtype=pt.int64)[modes_in_range]
+        n = min(n, mode_indices.shape[0])
+        top_n = importance[mode_indices].abs().topk(n).indices
+        return mode_indices[top_n]
+    
+    def predict(self, initial_condition: pt.Tensor, n_steps: int) -> pt.Tensor:
+        """Predict evolution over N steps starting from used-defined initial conditions.
+
+        :param initial_condition: initial state vector
+        :type initial_condition: pt.Tensor
+        :param n_steps: number of steps to predict
+        :type n_steps: int
+        :return: predicted evolution including the initial state (N+1 states are returned)
+        :rtype: pt.Tensor
+        """
+        b = pt.linalg.pinv(self._modes) @ initial_condition.type(self._modes.dtype)
+        prediction = self._modes @ pt.diag(b) @ pt.linalg.vander(self.eigvals, N=n_steps+1)
+        if not self._complex:
+            prediction = prediction.real
+        return prediction
 
     @property
     def required_memory(self) -> int:
@@ -200,6 +247,10 @@ class DMD(object):
     @property
     def eigvals(self) -> pt.Tensor:
         return self._eigvals
+    
+    @property
+    def eigvals_cont(self) -> pt.Tensor:
+        return pt.log(self._eigvals) / self._dt
 
     @property
     def eigvecs(self) -> pt.Tensor:
@@ -219,7 +270,7 @@ class DMD(object):
 
     @property
     def dynamics(self) -> pt.Tensor:
-        return pt.diag(self.amplitude) @ pt.vander(self.eigvals, self._dm.shape[-1], True)
+        return pt.diag(self.amplitude) @ pt.linalg.vander(self.eigvals, N=self._cols)
 
     @property
     def integral_contribution(self) -> pt.Tensor:
@@ -231,15 +282,15 @@ class DMD(object):
 
     @property
     def reconstruction(self) -> pt.Tensor:
-        """Reconstruct an approximation of the training data.
+        """Reconstruct an approximation of the original data matrix.
 
-        :return: reconstructed training data
+        :return: reconstructed data matrix
         :rtype: pt.Tensor
         """
-        if self._dm.dtype in (pt.complex128, pt.complex64, pt.complex32):
-            return (self._modes @ self.dynamics).type(self._dm.dtype)
-        else:
-            return (self._modes @ self.dynamics).real.type(self._dm.dtype)
+        rec = self.modes @ self.dynamics
+        if not self._complex:
+            rec = rec.real
+        return rec
 
     @property
     def reconstruction_error(self) -> pt.Tensor:
@@ -257,12 +308,12 @@ class DMD(object):
         :return: projection error
         :rtype: pt.Tensor
         """
-        YH = (self.modes @ pt.diag(self.eigvals)) @ \
-            (pt.linalg.pinv(self.modes) @ self._X.type(self.modes.dtype))
-        if self._Y.dtype in (pt.complex128, pt.complex64, pt.complex32):
-            return YH - self._Y
+        YH = (self._modes @ pt.diag(self.eigvals)) @ \
+            (pt.linalg.pinv(self._modes) @ self._X.type(self._modes.dtype))
+        if self._complex:
+            return YH - self._dm[:, 1:]
         else:
-            return YH.real.type(self._Y.dtype) - self._Y
+            return YH.real.type(self._Y.dtype) - self._dm[:, 1:]
 
     @property
     def tlsq_error(self) -> Tuple[pt.Tensor, pt.Tensor]:
@@ -274,6 +325,10 @@ class DMD(object):
         if not self._tlsq:
             print("Warning: noise is only removed if tlsq=True")
         return self._dm[:, :-1] - self._X, self._dm[:, 1:] - self._Y
+    
+    @property
+    def dft_properties(self) -> Tuple[float, float, float]:
+        return _dft_properties(self._dt, self._cols - 1)
 
     def __repr__(self):
         return f"{self.__class__.__qualname__}(data_matrix, rank={self._svd.rank})"
@@ -282,4 +337,7 @@ class DMD(object):
         ms = ["SVD:", str(self.svd), "LSQ:"]
         size, unit = format_byte_size(self.required_memory)
         ms.append("Overall DMD size: {:1.4f}{:s}".format(size, unit))
+        ms.append("DFT frequencies (sampling, max., res.):")
+        ms.append("{:1.4f}Hz, {:1.4f}Hz, {:1.4f}Hz".format(*self.dft_properties))
+        ms.append("")
         return "\n".join(ms)

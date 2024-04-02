@@ -4,6 +4,8 @@
 """
 
 # standard library packages
+from os.path import join
+from os import sep
 from glob import glob
 from typing import Callable, Union, List, Dict
 # third party packages
@@ -133,7 +135,7 @@ class VTKDataloader(Dataloader):
         :return: VTK file location
         :rtype: str
         """
-        return f"{self._path}/{self._prefix}{time}{self._suffix}"
+        return join(self._path, f"{self._prefix}{time}{self._suffix}")
 
     def load_snapshot(self,
                       field_name: Union[List[str], str],
@@ -182,7 +184,7 @@ class VTKDataloader(Dataloader):
         if self._write_times is None:
             files = glob(self._build_file_path("*"))
             self._write_times = sorted(
-                [f.split("/")[-1][len(self._prefix):-len(self._suffix)]
+                [f.split(sep)[-1][len(self._prefix):-len(self._suffix)]
                  for f in files], key=float
             )
         return self._write_times

@@ -16,6 +16,8 @@ the Python :term:`API`.
    notebooks/svd_cylinder
    notebooks/dmd_cylinder
    notebooks/cnm_cylinder
+   notebooks/mssa_cylinder
+   notebooks/hodmd
    notebooks/dmd_naca0012_surface
    notebooks/piv_analysis
    

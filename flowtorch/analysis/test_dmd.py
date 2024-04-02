@@ -1,11 +1,13 @@
-# standard library packages
-import pytest
+"""Unit tests for the DMD class.
+"""
+
 # third party packages
+from pytest import raises
 import torch as pt
 # flowtorch packages
 from flowtorch import DATASETS
 from flowtorch.data import FOAMDataloader
-from flowtorch.analysis import DMD
+from .dmd import _dft_properties, DMD
 
 
 def test_DMD():
@@ -13,6 +15,7 @@ def test_DMD():
     loader = FOAMDataloader(path)
     times = loader.write_times[1:]
     data = loader.load_snapshot("p", times)
+    rows, cols = data.shape
     rank = 3
     dmd = DMD(data, dt=0.1, rank=rank)
     assert dmd.eigvals.shape == (rank,)
@@ -20,29 +23,32 @@ def test_DMD():
     assert dmd.eigvecs.shape == (rank, rank)
     assert dmd.eigvecs.dtype == pt.complex64
     assert dmd.modes.dtype == pt.complex64
-    assert dmd.modes.shape == (data.shape[0], rank)
+    assert dmd.modes.shape == (rows, rank)
     assert dmd.frequency.shape == (rank,)
     assert dmd.growth_rate.shape == (rank,)
     assert dmd.amplitude.shape == (rank,)
     assert dmd.amplitude.dtype == pt.complex64
-    assert dmd.dynamics.shape == (rank, data.shape[-1])
+    assert dmd.dynamics.shape == (rank, cols)
     assert dmd.dynamics.dtype == pt.complex64
     assert dmd.integral_contribution.shape == (rank,)
     assert dmd.integral_contribution.dtype == pt.float32
-    assert dmd.reconstruction.shape == data.shape
+    assert dmd.reconstruction.shape == (rows, cols)
     assert dmd.reconstruction.dtype == data.dtype
     partial = dmd.partial_reconstruction({0})
     assert partial.dtype == data.dtype
-    assert partial.shape == data.shape
+    assert partial.shape == (rows, cols)
     partial = dmd.partial_reconstruction({0, 2})
     assert partial.dtype == data.dtype
-    assert partial.shape == data.shape
+    assert partial.shape == (rows, cols)
     top = dmd.top_modes(10)
     top = dmd.top_modes(10, True)
     assert top.shape == (min(rank, 10),)
     assert top.dtype == pt.int64
-    assert dmd.reconstruction_error.shape == data.shape
-    assert dmd.projection_error.shape == (data.shape[0], data.shape[1] - 1)
+    assert dmd.reconstruction_error.shape == (rows, cols)
+    assert dmd.projection_error.shape == (rows, cols - 1)
+    dft = dmd.dft_properties
+    assert len(dft) == 3
+    assert dft == (10.0, 5.0, 10.0/(cols - 1))
     # robust DMD
     dmd = DMD(data, dt=0.1, rank=rank, robust=True)
     assert dmd.svd.L.shape == (data.shape[0], rank+1)
@@ -66,6 +72,24 @@ def test_DMD():
     DX, DY = dmd.tlsq_error
     assert  DX.shape == (data.shape[0], data.shape[1] - 1)
     assert  DY.shape == (data.shape[0], data.shape[1] - 1)
+    # predict member function
+    dmd = DMD(data, dt=0.1, rank=3)
+    prediction = dmd.predict(data[:, -1], 10)
+    assert prediction.shape == (rows, 11)
+    assert prediction.dtype == data.dtype
+    data = data.type(pt.complex64)
+    dmd = DMD(data, dt=0.1, rank=3)
+    prediction = dmd.predict(data[:, -1], 10)
+    assert prediction.shape == (rows, 11)
+    assert prediction.dtype == data.dtype
+
+
+def test_dft_properties():
+    props = _dft_properties(0.1, 500)
+    assert len(props) == 3
+    assert props == (10.0, 5.0, 10.0/500)
+
+
 
 
 
