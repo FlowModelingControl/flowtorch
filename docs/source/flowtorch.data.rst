@@ -81,3 +81,11 @@ flowtorch.data.utils
    :members:
    :undoc-members:
    :show-inheritance:
+
+flowtorch.data.outlier\_tools
+-----------------------------
+
+.. automodule:: flowtorch.data.outlier_tools
+   :members:
+   :undoc-members:
+   :show-inheritance:
