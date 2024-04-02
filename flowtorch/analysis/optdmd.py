@@ -131,6 +131,9 @@ class EarlyStopping:
 class OptDMD(pt.nn.Module):
     """Optimized DMD based on backpropagation and gradient descent.
 
+    For a detailed description this DMD variant refer to
+    `Weiner and Semaan (2023) <https://arxiv.org/abs/2312.12928>`_.
+
     Examples
 
     >>> import torch as pt
