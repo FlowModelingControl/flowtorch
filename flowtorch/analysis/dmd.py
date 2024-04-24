@@ -55,7 +55,7 @@ class DMD(object):
 
     def __init__(self, data_matrix: pt.Tensor, dt: float, rank: int = None,
                  robust: Union[bool, dict] = False, unitary: bool = False,
-                 optimal: bool = False, tlsq: bool = False, usecols: pt.Tensor = None):
+                 optimal: bool = False, tlsq: bool = False):
         """Create DMD instance based on data matrix and time step. 
 
         :param data_matrix: data matrix whose columns are formed by the individual snapshots
