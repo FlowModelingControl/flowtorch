@@ -49,10 +49,10 @@ def _create_conj_complex_pairs(ev: pt.Tensor) -> Tuple[pt.Tensor, pt.Tensor]:
     return keep, pairs
 
 
-def l2_loss(
+def fro_loss(
     label: pt.Tensor, prediction: pt.Tensor, eigvecs: pt.Tensor, eigvals: pt.Tensor
 ) -> pt.Tensor:
-    """Compute the L2 norm of the prediction error.
+    """Compute the Frobenius norm of the prediction error.
 
     Note: in contrast to the default norm function in PyTorch,
     the norm is normalized by the number of elements in the
@@ -218,7 +218,7 @@ class OptDMD(pt.nn.Module):
         batch_size: int = None,
         train_size: Union[int, float] = 0.75,
         val_size: Union[int, float] = 0.25,
-        loss_function: Callable = l2_loss,
+        loss_function: Callable = fro_loss,
         scheduler_options: dict = {},
         stopping_options: dict = {},
         loss_key: str = "val_loss"
@@ -238,7 +238,7 @@ class OptDMD(pt.nn.Module):
             validation; defaults to 0.25
         :type val_size: Union[int, float], optional
         :param loss_function: user-defined loss function, e.g., to add
-            sparsity promotion, defaults to l2_loss
+            sparsity promotion, defaults to fro_loss
         :type loss_function: Callable, optional
         :param scheduler_options: options passed to learning rate scheduler;
             refer to PyTorch's `ReduceLROnPlateau` documentation; defaults to {}
