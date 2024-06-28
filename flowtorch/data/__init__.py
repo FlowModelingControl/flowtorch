@@ -6,6 +6,7 @@ from .psp_dataloader import PSPDataloader
 from .tau_dataloader import TAUDataloader, TAUSurfaceDataloader, TAUConfig
 from .selection_tools import mask_box, mask_sphere
 from .outlier_tools import iqr_outlier_replacement
+from .sequence_dataset import SequenceTensorDataset
 try:
     from .tecplot_dataloader import TecplotDataloader
 except Exception: 
