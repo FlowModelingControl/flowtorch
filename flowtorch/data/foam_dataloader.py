@@ -774,7 +774,7 @@ class FOAMMesh(object):
         :rtype: bool
 
         """
-        return isfile(path + "C") and isfile(path + "V")
+        return isfile(join(path, "C")) and isfile(join(path, "V"))
 
     def _parse_cell_centers(self, path: str) -> pt.Tensor:
         """Parse cell centers from the constant directory.
